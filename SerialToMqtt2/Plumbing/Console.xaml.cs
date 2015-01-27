@@ -18,11 +18,19 @@ namespace spiked3
 {
     public partial class Console : UserControl
     {
+        static ListBox myListbox;
         public Console()
         {
             InitializeComponent();
-            new TraceDecorator(listBox1);
+            myListbox = listBox1;
+            new TraceDecorator(myListbox);
         }
+
+        public static void ClearConsole()
+        {
+            myListbox.Items.Clear();
+        }
+
 
         class TraceDecorator : TraceListener
         {
@@ -64,6 +72,7 @@ namespace spiked3
             {
                 throw new NotImplementedException();
             }
+
         }
     }
 }

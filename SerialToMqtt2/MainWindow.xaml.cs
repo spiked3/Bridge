@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO.Ports;
 using System.Windows;
+using System.Windows.Controls.Ribbon;
 using uPLibrary.Networking.M2Mqtt;
 
 namespace SerialToMqtt2
@@ -11,7 +12,7 @@ namespace SerialToMqtt2
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
-    public partial class MainWindow : Window
+    public partial class MainWindow : RibbonWindow
     {
         // provide serial to mqtt bridge
         //   clients invisioned are APIs for arduino and netduino, and maybe LEGO RobotC
@@ -34,7 +35,7 @@ namespace SerialToMqtt2
         public static readonly DependencyProperty ShowDetailsProperty =
             DependencyProperty.Register("ShowDetails", typeof(bool?), typeof(MainWindow), new PropertyMetadata(false));
 
-        private byte[] CompPortsToMonitor = { 3, 5, 14 };     // +++ make as a parameter
+        private byte[] CompPortsToMonitor = { 3, 4, 5, 14 };     // +++ make as a parameter
 
         private Dictionary<SerialPort, ComportItem> PortDictionary = new Dictionary<SerialPort, ComportItem>();
         private Dictionary<string, byte> TopicDictionary = new Dictionary<string, byte>();
@@ -61,9 +62,21 @@ namespace SerialToMqtt2
             SetupSerialListeners();
         }
 
+        void CloseSerial()
+        {
+            foreach (ComportItem ci in ComPorts)
+                if (ci.SerialPort != null && ci.SerialPort.IsOpen)
+                    ci.SerialPort.Close();
+
+            ComPorts.Clear();
+        }
+
         private void SetupSerialListeners()
         {
             SerialPort s;
+
+            CloseSerial();
+
             foreach (var p in CompPortsToMonitor)
             {
                 try
@@ -106,6 +119,10 @@ namespace SerialToMqtt2
                     Trace.WriteLine("timeout on ReadLine()", "warn");
                     return;
                 }
+                catch (System.IO.IOException)
+                {
+                    return;
+                }
 
                 try
                 {   // parse it, it should be CMDtopic[,payload]
@@ -129,7 +146,7 @@ namespace SerialToMqtt2
                         // +++ add port and topic to subscribed dictionary
                     }
                     else
-                        Trace.WriteLine(string.Format("{0}, Framing error", p.PortName), "warn");
+                        Trace.WriteLine(string.Format("{0}, Unkown data error", p.PortName), "warn");
                 }
                 catch (Exception ex)
                 {   // errors make it through - ignore                    
@@ -145,17 +162,30 @@ namespace SerialToMqtt2
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
+            CloseSerial();
+
             if (Mqtt != null && Mqtt.IsConnected)
                 Mqtt.Disconnect();
-
-            foreach (ComportItem ci in ComPorts)
-                if (ci.SerialPort != null && ci.SerialPort.IsOpen)
-                    ci.SerialPort.Close();
         }
 
-        private void MenuItem_Click(object sender, RoutedEventArgs e)
+        private void Exit_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private void Reset_Click(object sender, RoutedEventArgs e)
+        {
+            SetupSerialListeners();
+        }
+
+        private void Pause_Click(object sender, RoutedEventArgs e)
+        {
+            CloseSerial();
+        }
+
+        private void Clear_Click(object sender, RoutedEventArgs e)
+        {
+            spiked3.Console.ClearConsole();
         }
     }
 }
