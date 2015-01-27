@@ -59,10 +59,10 @@ namespace SerialToMqtt2
             Mqtt.Connect("pcbridge");
             Trace.WriteLine("...Connected");
 
-            SetupSerialListeners();
+            StartSerial();
         }
 
-        void CloseSerial()
+        void StopSerial()
         {
             foreach (ComportItem ci in ComPorts)
                 if (ci.SerialPort != null && ci.SerialPort.IsOpen)
@@ -71,11 +71,11 @@ namespace SerialToMqtt2
             ComPorts.Clear();
         }
 
-        private void SetupSerialListeners()
+        private void StartSerial()
         {
             SerialPort s;
 
-            CloseSerial();
+            StopSerial();
 
             foreach (var p in CompPortsToMonitor)
             {
@@ -162,7 +162,7 @@ namespace SerialToMqtt2
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
-            CloseSerial();
+            StopSerial();
 
             if (Mqtt != null && Mqtt.IsConnected)
                 Mqtt.Disconnect();
@@ -173,14 +173,14 @@ namespace SerialToMqtt2
             Close();
         }
 
-        private void Reset_Click(object sender, RoutedEventArgs e)
+        private void Start_Click(object sender, RoutedEventArgs e)
         {
-            SetupSerialListeners();
+            StartSerial();
         }
 
-        private void Pause_Click(object sender, RoutedEventArgs e)
+        private void Stop_Click(object sender, RoutedEventArgs e)
         {
-            CloseSerial();
+            StopSerial();
         }
 
         private void Clear_Click(object sender, RoutedEventArgs e)

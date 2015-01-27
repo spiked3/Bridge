@@ -36,8 +36,8 @@
 
             <RibbonTab Header="Main" >
                 <RibbonGroup  Header="App">
-                    <RibbonButton Label="Reset" LargeImageSource="Images/Command-Reset.png" Click="Reset_Click" />
-                    <RibbonButton Label="Pause" LargeImageSource="Images/Media-Pause.png" Click="Pause_Click" />
+                    <RibbonButton Label="Start" LargeImageSource="Images/Media-Play.png" Click="Start_Click" />
+                    <RibbonButton Label="Stop" LargeImageSource="Images/No-01.png" Click="Stop_Click" />
                     <RibbonButton Label="Clear" LargeImageSource="Images/Clean.png" Click="Clear_Click" />
                     <!--<RibbonButton Label="Exit" LargeImageSource="Images/Shut down .png" />-->
                 </RibbonGroup>
