@@ -48,8 +48,8 @@
             </RibbonTab>
 
         </Ribbon>
-        
-        <ListBox DockPanel.Dock="Right" ItemsSource="{Binding ComPorts}" ItemTemplate="{StaticResource ComPortItemTemplate}" >
+
+        <ListBox DockPanel.Dock="Right" ItemsSource="{Binding ComPortItems}" ItemTemplate="{StaticResource ComPortItemTemplate}" >
             <ListBox.Background>
                 <SolidColorBrush Color="{DynamicResource {x:Static SystemColors.AppWorkspaceColorKey}}"/>
             </ListBox.Background>

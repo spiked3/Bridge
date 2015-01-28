@@ -6,6 +6,7 @@ using System.IO.Ports;
 using System.Windows;
 using System.Windows.Controls.Ribbon;
 using uPLibrary.Networking.M2Mqtt;
+using uPLibrary.Networking.M2Mqtt.Messages;
 
 namespace SerialToMqtt2
 {
@@ -24,28 +25,27 @@ namespace SerialToMqtt2
         // I looked at mqtt-sn a bit, and it changes mqtt, with a focus on wireless, I dont want to do that.
         // I am using wired serial connections, and would prefer to just drop in something very mqtt like on the client side.
 
-        public ObservableCollection<ComportItem> ComPorts { get; set; }
+        public ObservableCollection<ComportItem> ComPortItems { get; set; }
 
         public bool? ShowDetails
         {
             get { return (bool?)GetValue(ShowDetailsProperty); }
             set { SetValue(ShowDetailsProperty, value); }
         }
-
         public static readonly DependencyProperty ShowDetailsProperty =
             DependencyProperty.Register("ShowDetails", typeof(bool?), typeof(MainWindow), new PropertyMetadata(false));
 
-        private byte[] CompPortsToMonitor = { 3, 4, 5, 14 };     // +++ make as a parameter
+        byte[] CompPortsToMonitor = { 3, 4, 5, 14 };     // +++ make as a parameter
 
-        private Dictionary<SerialPort, ComportItem> PortDictionary = new Dictionary<SerialPort, ComportItem>();
-        private Dictionary<string, byte> TopicDictionary = new Dictionary<string, byte>();
+        Dictionary<string, List<SerialPort>> TopicListeners = new Dictionary<string, List<SerialPort>>();
+        Dictionary<SerialPort, ComportItem> ComPortItemsDictionary = new Dictionary<SerialPort, ComportItem>();
 
         private const string Broker = "127.0.0.1";
         public MqttClient Mqtt;
 
         public MainWindow()
         {
-            ComPorts = new ObservableCollection<ComportItem>();
+            ComPortItems = new ObservableCollection<ComportItem>();
             InitializeComponent();
         }
 
@@ -60,15 +60,18 @@ namespace SerialToMqtt2
             Trace.WriteLine("...Connected");
 
             StartSerial();
+
+            // +++ temp
+            Mqtt.Subscribe(new string[] { "Test/#" }, new byte[] { MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE });
         }
 
         void StopSerial()
         {
-            foreach (ComportItem ci in ComPorts)
+            foreach (ComportItem ci in ComPortItems)
                 if (ci.SerialPort != null && ci.SerialPort.IsOpen)
                     ci.SerialPort.Close();
 
-            ComPorts.Clear();
+            ComPortItems.Clear();
         }
 
         private void StartSerial()
@@ -93,8 +96,8 @@ namespace SerialToMqtt2
                 s.ReadTimeout = 100;
                 s.DataReceived += Serial_DataReceived;
                 ComportItem ci = new ComportItem { SerialPort = s };
-                ComPorts.Add(ci);
-                PortDictionary.Add(s, ci);
+                ComPortItems.Add(ci);
+                ComPortItemsDictionary.Add(s, ci);
 
                 Trace.WriteLine(string.Format("Serial port {0} opened.", p));
             }
@@ -103,7 +106,7 @@ namespace SerialToMqtt2
         private void Serial_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
             SerialPort p = sender as SerialPort;
-            ComportItem i = PortDictionary[p];
+            ComportItem i = ComPortItemsDictionary[p];
 
             i.ReceiveActivity();
 
@@ -142,8 +145,10 @@ namespace SerialToMqtt2
                     {
                         string topic = line.Substring(3);
                         Trace.WriteLine(string.Format("{0}, Subscribe topic({1})", p.PortName, topic));
-                        // +++ Mqtt.Subscribe(new[] { "s3/pilot/#" }, new[] { MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE });
-                        // +++ add port and topic to subscribed dictionary
+                        if (!TopicListeners.ContainsKey(topic))
+                            TopicListeners.Add(topic, new List<SerialPort>());
+                        TopicListeners[topic].Add(p);
+                        Mqtt.Subscribe(new string[] { topic }, new byte[] { MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE });
                     }
                     else
                         Trace.WriteLine(string.Format("{0}, Unkown data error", p.PortName), "warn");
@@ -157,7 +162,14 @@ namespace SerialToMqtt2
 
         private void Mqtt_MqttMsgPublishReceived(object sender, uPLibrary.Networking.M2Mqtt.Messages.MqttMsgPublishEventArgs e)
         {
-            throw new NotImplementedException();
+            foreach (var key in TopicListeners.Keys)
+            {
+                if (e.Topic.StartsWith(key))
+                {
+                    foreach (var p in TopicListeners[key])      // +++treat all subs as wildcards??? need to rethink
+                        p.Write("!!!\n");
+                }
+            }
         }
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
