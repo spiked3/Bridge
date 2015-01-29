@@ -57,6 +57,8 @@ namespace spiked3
                         category.Equals("-") ? Brushes.Gray :
                         ListBox.Foreground;
                     int i = ListBox.Items.Add(t);
+                    if (ListBox.Items.Count > 1024)
+                        ListBox.Items.RemoveAt(0);  // expensive I bet :(
                     var sv = ListBox.TryFindParent<ScrollViewer>();
                     if (sv != null)
                         sv.ScrollToBottom();  //  +++  not doing it

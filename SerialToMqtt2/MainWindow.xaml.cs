@@ -20,7 +20,7 @@ namespace SerialToMqtt2
         // attempt to open each specified com port, dont freak out if fails
         // listen on ports sucessfully opened
         // accept pub, sub, unsub commands
-        // port closing drops subscriptions
+        // +++port closing drops subscriptions
 
         // I looked at mqtt-sn a bit, and it changes mqtt, with a focus on wireless, I dont want to do that.
         // I am using wired serial connections, and would prefer to just drop in something very mqtt like on the client side.
@@ -32,13 +32,14 @@ namespace SerialToMqtt2
             get { return (bool?)GetValue(ShowDetailsProperty); }
             set { SetValue(ShowDetailsProperty, value); }
         }
+
         public static readonly DependencyProperty ShowDetailsProperty =
             DependencyProperty.Register("ShowDetails", typeof(bool?), typeof(MainWindow), new PropertyMetadata(false));
 
-        byte[] CompPortsToMonitor = { 3, 4, 5, 14 };     // +++ make as a parameter
+        private byte[] CompPortsToMonitor = { 3, 4, 5, 14 };     // +++ make as a parameter
 
-        Dictionary<string, List<SerialPort>> TopicListeners = new Dictionary<string, List<SerialPort>>();
-        Dictionary<SerialPort, ComportItem> ComPortItemsDictionary = new Dictionary<SerialPort, ComportItem>();
+        private Dictionary<string, List<SerialPort>> TopicListeners = new Dictionary<string, List<SerialPort>>();
+        private Dictionary<SerialPort, ComportItem> ComPortItemsDictionary = new Dictionary<SerialPort, ComportItem>();
 
         private const string Broker = "127.0.0.1";
         public MqttClient Mqtt;
@@ -55,22 +56,22 @@ namespace SerialToMqtt2
 
             Trace.WriteLine("Connecting to broker ...");
             Mqtt = new MqttClient(Broker);
-            Mqtt.MqttMsgPublishReceived += Mqtt_MqttMsgPublishReceived;
+
             Mqtt.Connect("pcbridge");
             Trace.WriteLine("...Connected");
 
-            StartSerial();
+            Mqtt.MqttMsgPublishReceived += MqttMsgPublishReceived;
 
-            // +++ temp
-            Mqtt.Subscribe(new string[] { "Test/#" }, new byte[] { MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE });
+            StartSerial();
         }
 
-        void StopSerial()
+        private void StopSerial()
         {
+            ComPortItemsDictionary.Clear();
+            TopicListeners.Clear();
             foreach (ComportItem ci in ComPortItems)
                 if (ci.SerialPort != null && ci.SerialPort.IsOpen)
                     ci.SerialPort.Close();
-
             ComPortItems.Clear();
         }
 
@@ -95,7 +96,7 @@ namespace SerialToMqtt2
 
                 s.ReadTimeout = 100;
                 s.DataReceived += Serial_DataReceived;
-                ComportItem ci = new ComportItem { SerialPort = s };
+                ComportItem ci = new ComportItem(s, Dispatcher);
                 ComPortItems.Add(ci);
                 ComPortItemsDictionary.Add(s, ci);
 
@@ -106,68 +107,99 @@ namespace SerialToMqtt2
         private void Serial_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
             SerialPort p = sender as SerialPort;
-            ComportItem i = ComPortItemsDictionary[p];
-
-            i.ReceiveActivity();
-
-            while (p.BytesToRead > 0)
+            if (ComPortItemsDictionary.ContainsKey(p))
             {
-                string line;
-                try
-                {
-                    line = p.ReadLine();
-                }
-                catch (TimeoutException)
-                {
-                    Trace.WriteLine("timeout on ReadLine()", "warn");
-                    return;
-                }
-                catch (System.IO.IOException)
-                {
-                    return;
-                }
+                ComportItem i = ComPortItemsDictionary[p];
 
-                try
-                {   // parse it, it should be CMDtopic[,payload]
-                    if (line.Substring(0, 3).Equals("PUB"))
+                i.ReceiveActivity();
+
+                while (p.BytesToRead > 0)
+                {
+                    string line;
+                    try
                     {
-                        int commaIdx = line.IndexOf(',', 3);
-                        string topic = line.Substring(3, commaIdx - 3);
-                        string payload = line.Substring(commaIdx + 1);
-                        Dispatcher.InvokeAsync(() =>
+                        line = p.ReadLine();
+                    }
+                    catch (TimeoutException)
+                    {
+                        Trace.WriteLine("timeout on ReadLine()", "warn");
+                        return;
+                    }
+                    catch (System.IO.IOException)
+                    {
+                        return;
+                    }
+
+                    try
+                    {   // parse it, it should be CMDtopic[,payload]
+                        if (line.Substring(0, 3).Equals("PUB"))
                         {
-                            if (ShowDetails ?? false)
-                                Trace.WriteLine(string.Format("{0}, Publish topic({1}) payload({2})", p.PortName, topic, payload));
-                            Mqtt.Publish(topic, System.Text.Encoding.UTF8.GetBytes(payload));
-                        });
+                            int commaIdx = line.IndexOf(',', 3);
+                            string topic = line.Substring(3, commaIdx - 3);
+                            string payload = line.Substring(commaIdx + 1);
+                            Dispatcher.InvokeAsync(() =>
+                            {
+                                if (ShowDetails ?? false)
+                                    Trace.WriteLine(string.Format("{0}, Publish topic({1}) payload({2})", p.PortName, topic, payload));
+                                Mqtt.Publish(topic, System.Text.Encoding.UTF8.GetBytes(payload));
+                            });
+                        }
+                        else if (line.Substring(0, 3).Equals("SUB"))
+                        {
+                            string topic = line.Substring(3);
+                            Trace.WriteLine(string.Format("{0} Subscribed topic({1})", p.PortName, topic));
+                            if (!TopicListeners.ContainsKey(topic))
+                            {
+                                TopicListeners.Add(topic, new List<SerialPort>());
+                                Mqtt.Subscribe(new string[] { topic + "/#" }, new byte[] { MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE });
+                            }
+                            TopicListeners[topic].Add(p);
+                        }
+                        else if (line.Substring(0, 3).Equals("UNS"))
+                        {
+                            string topic = line.Substring(3);
+                            Trace.WriteLine(string.Format("{0} Unsubscribed topic({1})", p.PortName, topic));
+
+                            if (TopicListeners.ContainsKey(topic))
+                            {
+                                for (int j = 0; j < TopicListeners[topic].Count; j++)
+                                    TopicListeners[topic].Remove(p);
+                                if (TopicListeners[topic].Count < 1)
+                                {
+                                    Mqtt.Unsubscribe(new string[] { topic });
+                                    Trace.WriteLine(string.Format("Bridge Unsubscribed topic({0})", topic));
+                                }
+                            }
+                        }
+                        else
+                            Trace.WriteLine(string.Format("{0}, Unkown data error", p.PortName), "warn");
                     }
-                    else if (line.Substring(0, 3).Equals("SUB"))
-                    {
-                        string topic = line.Substring(3);
-                        Trace.WriteLine(string.Format("{0}, Subscribe topic({1})", p.PortName, topic));
-                        if (!TopicListeners.ContainsKey(topic))
-                            TopicListeners.Add(topic, new List<SerialPort>());
-                        TopicListeners[topic].Add(p);
-                        Mqtt.Subscribe(new string[] { topic }, new byte[] { MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE });
+                    catch (Exception ex)
+                    {   // errors make it through - ignore
+                        Trace.WriteLine(string.Format("{0}, Rcv exception: {1}", p.PortName, ex.Message), "warn");
                     }
-                    else
-                        Trace.WriteLine(string.Format("{0}, Unkown data error", p.PortName), "warn");
-                }
-                catch (Exception ex)
-                {   // errors make it through - ignore                    
-                    Trace.WriteLine(string.Format("{0}, Rcv exception: {1}", p.PortName, ex.Message), "warn");
                 }
             }
         }
 
-        private void Mqtt_MqttMsgPublishReceived(object sender, uPLibrary.Networking.M2Mqtt.Messages.MqttMsgPublishEventArgs e)
+        private void MqttMsgPublishReceived(object sender, uPLibrary.Networking.M2Mqtt.Messages.MqttMsgPublishEventArgs e)
         {
             foreach (var key in TopicListeners.Keys)
             {
                 if (e.Topic.StartsWith(key))
                 {
-                    foreach (var p in TopicListeners[key])      // +++treat all subs as wildcards??? need to rethink
-                        p.Write("!!!\n");
+                    Dispatcher.InvokeAsync(() =>
+                    {
+                        if (ShowDetails ?? false)
+                            Trace.WriteLine(string.Format("Found subscriber list for {0}", e.Topic));
+                        foreach (var p in TopicListeners[key])
+                        {
+                            if (ShowDetails ?? false)
+                                Trace.WriteLine(string.Format("...pushing to {0}", p.PortName));
+                            ComPortItemsDictionary[p].TransmitActivity();
+                            p.Write("!!!!\n");
+                        }
+                    });
                 }
             }
         }
