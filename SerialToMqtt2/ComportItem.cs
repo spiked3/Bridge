@@ -1,19 +1,16 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Windows;
-using System.IO.Ports;
 using System.ComponentModel;
-using System.Linq;
+using System.IO.Ports;
 using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace SerialToMqtt2
 {
-    public class ComportItem : INotifyPropertyChanged
+    public class ComportItem : INotifyPropertyChanged, IDisposable
     {
+        //+++ should be disposable to kill timer?
+
         #region INotifyPropertyChanged
 
         public event PropertyChangedEventHandler PropertyChanged;
@@ -24,50 +21,61 @@ namespace SerialToMqtt2
                 PropertyChanged(this, new PropertyChangedEventArgs(T));
         }
 
-        #endregion
+        #endregion INotifyPropertyChanged
 
-        readonly TimeSpan blinkTime = new TimeSpan(0, 0, 0, 0, 100);
+        private readonly TimeSpan LightsOffDelay = new TimeSpan(0, 0, 0, 0, 100);
 
-        int ReceiveActivityCountdown = 0;
-        int TransmitActivityCountdown = 0;
+        private DateTime? ReceiveLightOffAt;
+        private DateTime? TransmitLightOffAt;
 
-        public Dispatcher DispatcherToUse { get; set; }
-        public string Name { get { return _Name; } set { _Name = value; OnPropertyChanged(); } } string _Name;
-        public Brush ReceiveBrush { get { return _ReceiveBrush; } set { _ReceiveBrush = value; OnPropertyChanged(); } } Brush _ReceiveBrush = Brushes.DarkRed;
-        public Brush TransmitBrush { get { return _TransmitBrush; } set { _TransmitBrush = value; OnPropertyChanged(); } } Brush _TransmitBrush = Brushes.DarkRed;
-        public SerialPort SerialPort { get { return _SerialPort; } set { _SerialPort = value; OnPropertyChanged(); } } SerialPort _SerialPort;
+        public string Name { get { return _Name; } set { _Name = value; OnPropertyChanged(); } } private string _Name;
+
+        public Brush ReceiveBrush { get { return _ReceiveBrush; } set { _ReceiveBrush = value; OnPropertyChanged(); } } private Brush _ReceiveBrush = Brushes.DarkRed;
+
+        public Brush TransmitBrush { get { return _TransmitBrush; } set { _TransmitBrush = value; OnPropertyChanged(); } } private Brush _TransmitBrush = Brushes.DarkRed;
+
+        public SerialPort SerialPort { get { return _SerialPort; } set { _SerialPort = value; OnPropertyChanged(); } } private SerialPort _SerialPort;
+
+        private DispatcherTimer DispatchTimer;
 
         public ComportItem(SerialPort s, Dispatcher d)
         {
-            DispatcherTimer t = new DispatcherTimer(blinkTime, DispatcherPriority.Normal, TimerTick, d);
-            t.Start();
+            SerialPort = s;
+            DispatchTimer = new DispatcherTimer(LightsOffDelay, DispatcherPriority.Normal, TimerTick, d);
+            DispatchTimer.Start();
         }
 
-        void TimerTick(object sender, EventArgs e)
+        private void TimerTick(object sender, EventArgs e)
         {
-            if (--ReceiveActivityCountdown < 1)
+            if (ReceiveLightOffAt.HasValue && DateTime.Now > ReceiveLightOffAt)
             {
                 ReceiveBrush = Brushes.DarkRed;
-                ReceiveActivityCountdown = 0;
+                ReceiveLightOffAt = null;
             }
-            if (--TransmitActivityCountdown < 1)
+
+            if (TransmitLightOffAt.HasValue && DateTime.Now > TransmitLightOffAt)
             {
                 TransmitBrush = Brushes.DarkRed;
-                TransmitActivityCountdown = 0;
+                TransmitLightOffAt = null;
             }
         }
 
         public void ReceiveActivity()
         {
             ReceiveBrush = _ReceiveBrush.Equals(Brushes.DarkRed) ? Brushes.Red : Brushes.DarkRed;
-            ReceiveActivityCountdown = 2;
+            ReceiveLightOffAt = DateTime.Now + LightsOffDelay;
         }
 
         public void TransmitActivity()
         {
             TransmitBrush = _TransmitBrush.Equals(Brushes.DarkRed) ? Brushes.Red : Brushes.DarkRed;
-            TransmitActivityCountdown = 2;
+            TransmitLightOffAt = DateTime.Now + LightsOffDelay;
         }
 
+        public void Dispose()
+        {
+            DispatchTimer.Stop();
+            DispatchTimer = null;
+        }
     }
 }

@@ -14,7 +14,7 @@
                         <ColumnDefinition Width="2*" />
                         <ColumnDefinition Width="2*" />
                     </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Path=SerialPort.PortName, FallbackValue=Name}" TextBlock.FontWeight="Bold" VerticalAlignment="Center" Margin="4" Grid.Column="0"/>
+                <TextBlock Text="{Binding Path=SerialPort.PortName, FallbackValue=N/A}" TextBlock.FontWeight="Bold" VerticalAlignment="Center" Margin="4" Grid.Column="0"/>
                 <Ellipse Width="18" Height="18" Fill="{Binding ReceiveBrush}"  Margin="4" Grid.Column="1" />
                     <Ellipse Width="18" Height="18" Fill="{Binding TransmitBrush}"  Margin="4" Grid.Column="2" />
                 </Grid>

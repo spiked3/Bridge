@@ -55,6 +55,8 @@ namespace spiked3
                         category.Equals("warn") ? Brushes.Yellow :
                         category.Equals("+") ? Brushes.LightGreen :
                         category.Equals("-") ? Brushes.Gray :
+                        category.Equals("1") ? Brushes.Cyan :
+                        category.Equals("2") ? Brushes.Magenta :
                         ListBox.Foreground;
                     int i = ListBox.Items.Add(t);
                     if (ListBox.Items.Count > 1024)

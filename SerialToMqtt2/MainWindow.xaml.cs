@@ -67,11 +67,14 @@ namespace SerialToMqtt2
 
         private void StopSerial()
         {
+            foreach (SerialPort s in ComPortItemsDictionary.Keys)
+                if (s.IsOpen)
+                {
+                    s.Close();
+                    Trace.WriteLine(string.Format("Closed {0}", s.PortName));
+                }
             ComPortItemsDictionary.Clear();
             TopicListeners.Clear();
-            foreach (ComportItem ci in ComPortItems)
-                if (ci.SerialPort != null && ci.SerialPort.IsOpen)
-                    ci.SerialPort.Close();
             ComPortItems.Clear();
         }
 
@@ -190,12 +193,11 @@ namespace SerialToMqtt2
                 {
                     Dispatcher.InvokeAsync(() =>
                     {
-                        if (ShowDetails ?? false)
-                            Trace.WriteLine(string.Format("Found subscriber list for {0}", e.Topic));
+                        Trace.WriteLine(string.Format("Found subscriber list for {0}", e.Topic), "-");
                         foreach (var p in TopicListeners[key])
                         {
                             if (ShowDetails ?? false)
-                                Trace.WriteLine(string.Format("...pushing to {0}", p.PortName));
+                                Trace.WriteLine(string.Format("...pushing to {0}", p.PortName), "-");
                             ComPortItemsDictionary[p].TransmitActivity();
                             p.Write("!!!!\n");
                         }
