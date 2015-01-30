@@ -27,14 +27,15 @@ namespace SerialToMqtt2
 
         public ObservableCollection<ComportItem> ComPortItems { get; set; }
 
-        public bool? ShowDetails
-        {
-            get { return (bool?)GetValue(ShowDetailsProperty); }
-            set { SetValue(ShowDetailsProperty, value); }
-        }
 
-        public static readonly DependencyProperty ShowDetailsProperty =
-            DependencyProperty.Register("ShowDetails", typeof(bool?), typeof(MainWindow), new PropertyMetadata(false));
+
+        public int MessageLevel
+        {
+            get { return (int)GetValue(MessageLevelProperty); }
+            set { SetValue(MessageLevelProperty, value); }
+        }
+        public static readonly DependencyProperty MessageLevelProperty =
+            DependencyProperty.Register("MessageLevel", typeof(int), typeof(MainWindow), new PropertyMetadata(1));
 
         private byte[] CompPortsToMonitor = { 3, 4, 5, 14 };     // +++ make as a parameter
 
@@ -48,17 +49,24 @@ namespace SerialToMqtt2
         {
             ComPortItems = new ObservableCollection<ComportItem>();
             InitializeComponent();
+
+            Width = Settings1.Default.Width;
+            Height = Settings1.Default.Height;
+            Top = Settings1.Default.Top;
+            Left = Settings1.Default.Left;
         }
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
+            spiked3.Console.MessageLevel = MessageLevel;
+
             Trace.WriteLine("MQTT to Serial Bridge 2/WPF © 2015 Spiked3.com", "+");
 
-            Trace.WriteLine("Connecting to broker ...");
+            Trace.WriteLine("Connecting to broker ...", "1");
             Mqtt = new MqttClient(Broker);
 
             Mqtt.Connect("pcbridge");
-            Trace.WriteLine("...Connected");
+            Trace.WriteLine("...Connected", "1");
 
             Mqtt.MqttMsgPublishReceived += MqttMsgPublishReceived;
 
@@ -71,7 +79,7 @@ namespace SerialToMqtt2
                 if (s.IsOpen)
                 {
                     s.Close();
-                    Trace.WriteLine(string.Format("Closed {0}", s.PortName));
+                    Trace.WriteLine(string.Format("Closed {0}", s.PortName), "1");
                 }
             ComPortItemsDictionary.Clear();
             TopicListeners.Clear();
@@ -93,7 +101,7 @@ namespace SerialToMqtt2
                 }
                 catch (Exception)
                 {
-                    Trace.WriteLine(string.Format("Serial port {0} failed to open, skipping.", p));
+                    Trace.WriteLine(string.Format("Serial port {0} failed to open, skipping.", p), "1");
                     continue;
                 }
 
@@ -142,15 +150,14 @@ namespace SerialToMqtt2
                             string payload = line.Substring(commaIdx + 1);
                             Dispatcher.InvokeAsync(() =>
                             {
-                                if (ShowDetails ?? false)
-                                    Trace.WriteLine(string.Format("{0}, Publish topic({1}) payload({2})", p.PortName, topic, payload));
+                                Trace.WriteLine(string.Format("{0}, Publish topic({1}) payload({2})", p.PortName, topic, payload), "3");
                                 Mqtt.Publish(topic, System.Text.Encoding.UTF8.GetBytes(payload));
                             });
                         }
                         else if (line.Substring(0, 3).Equals("SUB"))
                         {
                             string topic = line.Substring(3);
-                            Trace.WriteLine(string.Format("{0} Subscribed topic({1})", p.PortName, topic));
+                            Trace.WriteLine(string.Format("{0} Subscribed topic({1})", p.PortName, topic), "1");
                             if (!TopicListeners.ContainsKey(topic))
                             {
                                 TopicListeners.Add(topic, new List<SerialPort>());
@@ -161,7 +168,7 @@ namespace SerialToMqtt2
                         else if (line.Substring(0, 3).Equals("UNS"))
                         {
                             string topic = line.Substring(3);
-                            Trace.WriteLine(string.Format("{0} Unsubscribed topic({1})", p.PortName, topic));
+                            Trace.WriteLine(string.Format("{0} Unsubscribed topic({1})", p.PortName, topic), "1");
 
                             if (TopicListeners.ContainsKey(topic))
                             {
@@ -170,7 +177,7 @@ namespace SerialToMqtt2
                                 if (TopicListeners[topic].Count < 1)
                                 {
                                     Mqtt.Unsubscribe(new string[] { topic });
-                                    Trace.WriteLine(string.Format("Bridge Unsubscribed topic({0})", topic));
+                                    Trace.WriteLine(string.Format("Bridge Unsubscribed topic({0})", topic), "1");
                                 }
                             }
                         }
@@ -196,8 +203,7 @@ namespace SerialToMqtt2
                         Trace.WriteLine(string.Format("Found subscriber list for {0}", e.Topic), "-");
                         foreach (var p in TopicListeners[key])
                         {
-                            if (ShowDetails ?? false)
-                                Trace.WriteLine(string.Format("...pushing to {0}", p.PortName), "-");
+                            Trace.WriteLine(string.Format("...pushing to {0}", p.PortName), "2");
                             ComPortItemsDictionary[p].TransmitActivity();
                             p.Write("!!!!\n");
                         }
@@ -212,6 +218,13 @@ namespace SerialToMqtt2
 
             if (Mqtt != null && Mqtt.IsConnected)
                 Mqtt.Disconnect();
+
+            Settings1.Default.Width = (float)((Window)sender).Width;
+            Settings1.Default.Height = (float)((Window)sender).Height;
+            Settings1.Default.Top = (float)((Window)sender).Top;
+            Settings1.Default.Left = (float)((Window)sender).Left;
+            Settings1.Default.Save();
+
         }
 
         private void Exit_Click(object sender, RoutedEventArgs e)
@@ -231,7 +244,17 @@ namespace SerialToMqtt2
 
         private void Clear_Click(object sender, RoutedEventArgs e)
         {
-            spiked3.Console.ClearConsole();
+            spiked3.Console.Clear();
+        }
+
+        private void Test_Click(object sender, RoutedEventArgs e)
+        {
+            spiked3.Console.Test();
+        }
+
+        private void Slider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            spiked3.Console.MessageLevel = (int)e.NewValue;
         }
     }
 }

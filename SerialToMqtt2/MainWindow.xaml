@@ -6,52 +6,62 @@
         Title="Serial to MQTT Bridge 2.0 / WPF" Height="480" Width="525" Loaded="Window_Loaded" Closing="Window_Closing">
 
     <RibbonWindow.Resources>
-        <DataTemplate x:Key="ComPortItemTemplate" >
-            <Border BorderThickness="1" BorderBrush="Gray" HorizontalAlignment="Stretch" Width="114" >
+        <DataTemplate x:Key="ComPortItemTemplate">
+            <Border BorderThickness="1" BorderBrush="Gray" HorizontalAlignment="Stretch" Width="114">
                 <Grid HorizontalAlignment="Stretch" Background="White">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="4*" />
                         <ColumnDefinition Width="2*" />
                         <ColumnDefinition Width="2*" />
                     </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Path=SerialPort.PortName, FallbackValue=N/A}" TextBlock.FontWeight="Bold" VerticalAlignment="Center" Margin="4" Grid.Column="0"/>
-                <Ellipse Width="18" Height="18" Fill="{Binding ReceiveBrush}"  Margin="4" Grid.Column="1" />
+                    <TextBlock Text="{Binding Path=SerialPort.PortName, FallbackValue=N/A}" TextBlock.FontWeight="Bold" VerticalAlignment="Center" Margin="4" Grid.Column="0" />
+                    <Ellipse Width="18" Height="18" Fill="{Binding ReceiveBrush}"  Margin="4" Grid.Column="1" />
                     <Ellipse Width="18" Height="18" Fill="{Binding TransmitBrush}"  Margin="4" Grid.Column="2" />
                 </Grid>
-
             </Border>
         </DataTemplate>
     </RibbonWindow.Resources>
     <DockPanel LastChildFill="True">
-        <Ribbon DockPanel.Dock="Top" VerticalAlignment="Top">
+        <Ribbon DockPanel.Dock="Top" Height="118">
             <Ribbon.QuickAccessToolBar>
                 <RibbonQuickAccessToolBar>
-                </RibbonQuickAccessToolBar>                
-            </Ribbon.QuickAccessToolBar>            
+                </RibbonQuickAccessToolBar>
+            </Ribbon.QuickAccessToolBar>
             <Ribbon.ApplicationMenu>
-                <RibbonApplicationMenu >
-                    <RibbonButton Label="Exit" LargeImageSource="Images/Shut down .png" Click="Exit_Click"  />
+                <RibbonApplicationMenu>
+                    <RibbonButton Label="Exit" LargeImageSource="Images/Shut down .png" Click="Exit_Click" />
+                    <RibbonButton Label="Test" Click="Test_Click"  />
                 </RibbonApplicationMenu>
             </Ribbon.ApplicationMenu>
 
-            <RibbonTab Header="Main" >
-                <RibbonGroup  Header="App">
+            <RibbonTab Header="Main">
+                <RibbonGroup>
                     <RibbonButton Label="Start" LargeImageSource="Images/Media-Play.png" Click="Start_Click" />
                     <RibbonButton Label="Stop" LargeImageSource="Images/No-01.png" Click="Stop_Click" />
                     <RibbonButton Label="Clear" LargeImageSource="Images/Clean.png" Click="Clear_Click" />
                     <!--<RibbonButton Label="Exit" LargeImageSource="Images/Shut down .png" />-->
                 </RibbonGroup>
-                <RibbonGroup  Header="Options">
-                    <CheckBox Content="Details" IsChecked="{Binding ShowDetails, Mode=TwoWay}" VerticalAlignment="Center" />
+                <RibbonGroup>
+                    <Grid Width="Auto" >
+                        <Grid.RowDefinitions >
+                            <RowDefinition Height="1*" />
+                            <RowDefinition Height="1*" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions >
+                            <ColumnDefinition Width="1*" />
+                            <ColumnDefinition Width="1*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding MessageLevel}" Grid.Row="0" Grid.Column="1" Margin="4" />
+                        <TextBlock Text="Message Level" Grid.Row="0" Grid.Column="0" Margin="4" />
+                        <Slider Minimum="0" Maximum="5" TickFrequency="1" TickPlacement="TopLeft" IsSnapToTickEnabled="True" Value="{Binding MessageLevel, Mode=TwoWay}" ValueChanged="Slider_ValueChanged" Grid.Row="1" Grid.ColumnSpan="2" />
+                    </Grid>
                 </RibbonGroup>
-
             </RibbonTab>
-
         </Ribbon>
 
-        <ListBox DockPanel.Dock="Right" ItemsSource="{Binding ComPortItems}" ItemTemplate="{StaticResource ComPortItemTemplate}" >
+        <ListBox DockPanel.Dock="Right" ItemsSource="{Binding ComPortItems}" ItemTemplate="{StaticResource ComPortItemTemplate}">
             <ListBox.Background>
-                <SolidColorBrush Color="{DynamicResource {x:Static SystemColors.AppWorkspaceColorKey}}"/>
+                <SolidColorBrush Color="{DynamicResource {x:Static SystemColors.AppWorkspaceColorKey}}" />
             </ListBox.Background>
         </ListBox>
 

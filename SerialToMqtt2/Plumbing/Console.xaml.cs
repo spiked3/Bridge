@@ -16,9 +16,17 @@ using System.Windows.Shapes;
 
 namespace spiked3
 {
+    // default color foreground
+    // + will be bright green
+    // warn is yellow
+    // error is red
+    // level 1-4 detail level of debugging messages, 4 being lowest
     public partial class Console : UserControl
     {
         static ListBox myListbox;
+
+        static public int MessageLevel { get; set; }
+
         public Console()
         {
             InitializeComponent();
@@ -26,11 +34,23 @@ namespace spiked3
             new TraceDecorator(myListbox);
         }
 
-        public static void ClearConsole()
+        public static void Clear()
         {
             myListbox.Items.Clear();
         }
 
+        public static void Test()
+        {
+            Trace.WriteLine("Test_Click");
+            Trace.WriteLine("test +", "+");
+            Trace.WriteLine("test warn", "warn");
+            Trace.WriteLine("test error", "error");
+            Trace.WriteLine("test 1", "1");
+            Trace.WriteLine("test 2", "2");
+            Trace.WriteLine("test 3", "3");
+            Trace.WriteLine("test 4", "4");
+            Trace.WriteLine("test 5", "5");
+        }
 
         class TraceDecorator : TraceListener
         {
@@ -46,7 +66,13 @@ namespace spiked3
                 if (ListBox == null)
                     return;
 
-                ListBox.Dispatcher.InvokeAsync(() =>
+                int CatagoryLevel;
+
+                if (int.TryParse(category, out CatagoryLevel))  //if a numeric was specified
+                    if (CatagoryLevel > MessageLevel)
+                        return;
+
+                ListBox.Dispatcher.Invoke(() =>
                 {
                     // +++ add timestamp and level to msg like 12:22.78 Warning: xyz is being bad
                     TextBlock t = new TextBlock();
@@ -54,10 +80,9 @@ namespace spiked3
                     t.Foreground = category.Equals("error") ? Brushes.Red :
                         category.Equals("warn") ? Brushes.Yellow :
                         category.Equals("+") ? Brushes.LightGreen :
-                        category.Equals("-") ? Brushes.Gray :
-                        category.Equals("1") ? Brushes.Cyan :
-                        category.Equals("2") ? Brushes.Magenta :
+                        CatagoryLevel > 0 ? Brushes.Cyan :
                         ListBox.Foreground;
+
                     int i = ListBox.Items.Add(t);
                     if (ListBox.Items.Count > 1024)
                         ListBox.Items.RemoveAt(0);  // expensive I bet :(
