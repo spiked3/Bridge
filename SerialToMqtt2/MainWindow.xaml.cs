@@ -27,8 +27,6 @@ namespace SerialToMqtt2
 
         public ObservableCollection<ComportItem> ComPortItems { get; set; }
 
-
-
         public int MessageLevel
         {
             get { return (int)GetValue(MessageLevelProperty); }
