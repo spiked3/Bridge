@@ -1,3 +1,6 @@
 [submodule "plumbing"]
 	path = plumbing
 	url = //JEFF/Git2/Plumbing.git
+[submodule "SerialToMqtt2/Plumbing"]
+	path = SerialToMqtt2/Plumbing
+	url = //JEFF/Git2/Plumbing.git
