@@ -27,14 +27,6 @@ namespace SerialToMqtt2
 
         public ObservableCollection<ComportItem> ComPortItems { get; set; }
 
-        public int MessageLevel
-        {
-            get { return (int)GetValue(MessageLevelProperty); }
-            set { SetValue(MessageLevelProperty, value); }
-        }
-        public static readonly DependencyProperty MessageLevelProperty =
-            DependencyProperty.Register("MessageLevel", typeof(int), typeof(MainWindow), new PropertyMetadata(1));
-
         private byte[] CompPortsToMonitor = { 3, 4, 5, 14 };     // +++ make as a parameter
 
         private Dictionary<string, List<SerialPort>> TopicListeners = new Dictionary<string, List<SerialPort>>();
@@ -52,11 +44,17 @@ namespace SerialToMqtt2
             Height = Settings1.Default.Height;
             Top = Settings1.Default.Top;
             Left = Settings1.Default.Left;
+
+            if (Width == 0 || Height == 0)
+            {
+                Width = 640;
+                Height = 480;
+            }
         }
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            spiked3.Console.MessageLevel = MessageLevel;
+            spiked3.Console.MessageLevel = 1;
 
             Trace.WriteLine("MQTT to Serial Bridge 2/WPF © 2015 Spiked3.com", "+");
 
@@ -240,19 +238,9 @@ namespace SerialToMqtt2
             StopSerial();
         }
 
-        private void Clear_Click(object sender, RoutedEventArgs e)
-        {
-            spiked3.Console.Clear();
-        }
-
         private void Test_Click(object sender, RoutedEventArgs e)
         {
-            spiked3.Console.Test();
-        }
-
-        private void Slider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            spiked3.Console.MessageLevel = (int)e.NewValue;
+            Console1.Test();
         }
     }
 }

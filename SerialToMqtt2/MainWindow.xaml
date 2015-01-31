@@ -37,24 +37,7 @@
             <RibbonTab Header="Main">
                 <RibbonGroup>
                     <RibbonButton Label="Start" LargeImageSource="Images/Media-Play.png" Click="Start_Click" />
-                    <RibbonButton Label="Stop" LargeImageSource="Images/No-01.png" Click="Stop_Click" />
-                    <RibbonButton Label="Clear" LargeImageSource="Images/Clean.png" Click="Clear_Click" />
-                    <!--<RibbonButton Label="Exit" LargeImageSource="Images/Shut down .png" />-->
-                </RibbonGroup>
-                <RibbonGroup>
-                    <Grid Width="Auto" >
-                        <Grid.RowDefinitions >
-                            <RowDefinition Height="1*" />
-                            <RowDefinition Height="1*" />
-                        </Grid.RowDefinitions>
-                        <Grid.ColumnDefinitions >
-                            <ColumnDefinition Width="1*" />
-                            <ColumnDefinition Width="1*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="{Binding MessageLevel}" Grid.Row="0" Grid.Column="1" Margin="4" />
-                        <TextBlock Text="Message Level" Grid.Row="0" Grid.Column="0" Margin="4" />
-                        <Slider Minimum="0" Maximum="5" TickFrequency="1" TickPlacement="TopLeft" IsSnapToTickEnabled="True" Value="{Binding MessageLevel, Mode=TwoWay}" ValueChanged="Slider_ValueChanged" Grid.Row="1" Grid.ColumnSpan="2" />
-                    </Grid>
+                    <RibbonButton Label="Stop" LargeImageSource="Images/No-01.png" Click="Stop_Click" />                    
                 </RibbonGroup>
             </RibbonTab>
         </Ribbon>
@@ -65,6 +48,6 @@
             </ListBox.Background>
         </ListBox>
 
-        <local:Console />
+        <local:Console x:Name="Console1" />
     </DockPanel>
 </RibbonWindow>
