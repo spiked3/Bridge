@@ -1,0 +1,3 @@
+[submodule "plumbing"]
+	path = plumbing
+	url = //JEFF/Git2/Plumbing.git
