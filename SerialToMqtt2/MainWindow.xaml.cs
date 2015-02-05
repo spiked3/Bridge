@@ -146,7 +146,8 @@ namespace SerialToMqtt2
                             string payload = line.Substring(commaIdx + 1);
                             Dispatcher.InvokeAsync(() =>
                             {
-                                Trace.WriteLine(string.Format("{0}, Publish topic({1}) payload({2})", p.PortName, topic, payload), "3");
+                                Trace.WriteLine(string.Format("DataReceived {0}, Publish topic({1})", p.PortName, topic), "2");
+                                Trace.WriteLine(string.Format("({0})", payload), "3");
                                 Mqtt.Publish(topic, System.Text.Encoding.UTF8.GetBytes(payload));
                             });
                         }
@@ -163,6 +164,7 @@ namespace SerialToMqtt2
                         }
                         else if (line.Substring(0, 3).Equals("UNS"))
                         {
+                            System.Diagnostics.Debugger.Break();
                             string topic = line.Substring(3);
                             Trace.WriteLine(string.Format("{0} Unsubscribed topic({1})", p.PortName, topic), "1");
 
@@ -196,12 +198,17 @@ namespace SerialToMqtt2
                 {
                     Dispatcher.InvokeAsync(() =>
                     {
-                        Trace.WriteLine(string.Format("Found subscriber list for {0}", e.Topic), "-");
+                        Trace.WriteLine(string.Format("Found subscriber list for {0}", e.Topic), "1");
                         foreach (var p in TopicListeners[key])
                         {
-                            Trace.WriteLine(string.Format("...pushing to {0}", p.PortName), "2");
+                            Trace.WriteLine(string.Format("MqttPublish {0}", p.PortName), "1");
                             ComPortItemsDictionary[p].TransmitActivity();
-                            p.Write("!!!!\n");
+                            var s = string.Format("PUB{0},", e.Topic);
+                            Trace.WriteLine(s, "2");
+                            Trace.WriteLine(spiked3.extensions.HexDump(e.Message, 32), "3");
+                            p.Write(s);
+                            p.Write(e.Message, 0, e.Message.Length);
+                            p.Write("\n");
                         }
                     });
                 }
