@@ -1,14 +1,14 @@
-﻿using System;
+﻿using spiked3;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO.Ports;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls.Ribbon;
 using uPLibrary.Networking.M2Mqtt;
 using uPLibrary.Networking.M2Mqtt.Messages;
-
-using spiked3;
 
 namespace SerialToMqtt2
 {
@@ -95,7 +95,7 @@ namespace SerialToMqtt2
             {
                 try
                 {
-                    s = new SerialPort("COM" + p.ToString(), 57600, Parity.None, 8, StopBits.One);
+                    s = new SerialPort("COM" + p.ToString(), 115200, Parity.None, 8, StopBits.One);
                     s.Open();
                 }
                 catch (Exception)
@@ -104,7 +104,7 @@ namespace SerialToMqtt2
                     continue;
                 }
 
-                s.ReadTimeout = 500;
+                s.ReadTimeout = 1000;
                 s.DataReceived += Serial_DataReceived;
                 ComportItem ci = new ComportItem(s, Dispatcher);
                 ComPortItems.Add(ci);
@@ -129,6 +129,7 @@ namespace SerialToMqtt2
                     try
                     {
                         line = p.ReadLine();
+                        line = line.Trim(new char[] { '\r', 'n' });     // not supposed to be there, throw away if they are
                     }
                     catch (TimeoutException)
                     {
@@ -153,13 +154,42 @@ namespace SerialToMqtt2
                         continue;
                     }
 
+                    // parse it, it must be CMDtopic[/subTopic][{json}]
                     try
-                    {   // parse it, it must be CMDtopic[{json}]
-                        string topic = line.Substring(3, 3);
+                    {
+                        string topic, subTopic = "N/A";
                         byte[] payload = null;
-                        int payloadIdx = line.IndexOf('{', 6, 1);
-                        if (payloadIdx > -1)
-                            payload = line.Substring(payloadIdx).ToBytes();
+
+                        bool hasPayload = false, hasSub = false;
+                        int topicEnd, subEnd;
+
+                        int subStart = line.IndexOf('/', 4);
+                        int payloadStart = line.IndexOf('{', 4);
+
+                        if (payloadStart != -1)
+                        {
+                            int payloadEnd = line.IndexOf('}', 4);
+                            if (payloadEnd == -1)
+                            {
+                                Trace.WriteLine("Improperly formatted payload, msg discarded", "warn");
+                                return;
+                            }
+                            payload = line.Substring(payloadStart, payloadEnd - payloadStart + 1).ToBytes();
+                            hasPayload = true;
+                        }
+
+                        if (subStart != -1)
+                        {
+                            subEnd = hasPayload ? payloadStart - 1 : line.Length;
+                            subTopic = line.Substring(subStart + 1, subEnd - subStart);
+                            hasSub = true;
+                        }
+
+                        topicEnd = hasSub ? subStart - 1 : hasPayload ? payloadStart - 1 : line.Length - 1;
+                        topic = line.Substring(3, topicEnd - 2);
+
+                        var x = spiked3.extensions.HexDump(payload, 32).Trim(new char[] { '\r', '\n' });
+                        Trace.WriteLine(string.Format("{0} incoming {1}/{2} |{3}|", p.PortName, topic, subTopic, x), "3");
 
                         switch (line.Substring(0, 3))
                         {
@@ -167,8 +197,11 @@ namespace SerialToMqtt2
                                 Dispatcher.InvokeAsync(() =>
                                 {
                                     Trace.WriteLine(string.Format("DataReceived {0}, Publish topic({1})", p.PortName, topic), "2");
-                                    Trace.WriteLine(string.Format("({0})", payload), "3");
-                                    Mqtt.Publish(topic, payload);
+                                    StringBuilder b = new StringBuilder();
+                                    b.Append(topic);
+                                    if (hasSub)
+                                        b.Append('/' + subTopic);
+                                    Mqtt.Publish(b.ToString(), payload);
                                 });
                                 break;
 
