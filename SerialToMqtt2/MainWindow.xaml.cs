@@ -148,12 +148,13 @@ namespace SerialToMqtt2
                         continue;
                     }
 
-                    if (line.Length < 6)
+                    if (line.Length < 4)
                     {
                         Trace.WriteLine(string.Format("{0} framing error", p.PortName), "warn");
                         continue;
                     }
 
+                    // +++ needs a thorough test
                     // parse it, it must be CMDtopic[/subTopic][{json}]
                     try
                     {
@@ -201,7 +202,7 @@ namespace SerialToMqtt2
                                     b.Append(topic);
                                     if (hasSub)
                                         b.Append('/' + subTopic);
-                                    Mqtt.Publish(b.ToString(), payload);
+                                    Mqtt.Publish(b.ToString(), payload, MqttMsgBase.QOS_LEVEL_AT_LEAST_ONCE, false);
                                 });
                                 break;
 
@@ -258,10 +259,9 @@ namespace SerialToMqtt2
                         {
                             Trace.WriteLine(string.Format("MqttPublish {0}", p.PortName), "1");
                             ComPortItemsDictionary[p].TransmitActivity();
-                            var s = string.Format("PUB{0},", e.Topic);
-                            Trace.WriteLine(s, "2");
+                            Trace.WriteLine(e.Topic, "2");
                             Trace.WriteLine(spiked3.extensions.HexDump(e.Message, 32), "3");
-                            p.Write(s);
+                            p.Write(e.Topic);
                             p.Write(e.Message, 0, e.Message.Length);
                             p.Write("\n");
                         }
