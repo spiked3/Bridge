@@ -37,7 +37,7 @@
             <RibbonTab Header="Main">
                 <RibbonGroup>
                     <RibbonButton Label="Start" LargeImageSource="Images/Media-Play.png" Click="Start_Click" />
-                    <RibbonButton Label="Stop" LargeImageSource="Images/No-01.png" Click="Stop_Click" />                    
+                    <RibbonButton Label="Stop" LargeImageSource="Images/No-01.png" Click="Stop_Click" />
                 </RibbonGroup>
             </RibbonTab>
         </Ribbon>
