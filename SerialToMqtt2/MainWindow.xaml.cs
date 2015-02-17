@@ -22,14 +22,13 @@ namespace SerialToMqtt2
         // attempt to open each specified com port, dont freak out if fails
         // listen on ports sucessfully opened
         // accept pub, sub, unsub commands
-        // +++port closing drops subscriptions
-
-        // I looked at mqtt-sn a bit, and it changes mqtt, with a focus on wireless, I dont want to do that.
-        // I am using wired serial connections, and would prefer to just drop in something very mqtt like on the client side.
+        // todo port closing drops subscriptions
+        // todo sequence and CRC support on serial link
+        // todo make ports to monitor a parameter
 
         public ObservableCollection<ComportItem> ComPortItems { get; set; }
 
-        private byte[] CompPortsToMonitor = { 3, 4, 5, 14 };     // +++ make as a parameter
+        private byte[] CompPortsToMonitor = { 3, 4, 5, 14 };
 
         private Dictionary<string, List<SerialPort>> TopicListeners = new Dictionary<string, List<SerialPort>>();
         private Dictionary<SerialPort, ComportItem> ComPortItemsDictionary = new Dictionary<SerialPort, ComportItem>();
@@ -62,9 +61,8 @@ namespace SerialToMqtt2
 
             Trace.WriteLine("Connecting to broker ...", "1");
             Mqtt = new MqttClient(Broker);
-
             Mqtt.Connect("pcbridge");
-            Trace.WriteLine("...Connected", "1");
+            Trace.WriteLine(string.Format("...Connected to {0}", Mqtt.ProtocolVersion.ToString()), "1");
 
             Mqtt.MqttMsgPublishReceived += MqttMsgPublishReceived;
 
@@ -87,12 +85,10 @@ namespace SerialToMqtt2
 
         private void StartSerial()
         {
-            SerialPort s;
-
             StopSerial();
-
             foreach (var p in CompPortsToMonitor)
             {
+                SerialPort s;
                 try
                 {
                     s = new SerialPort("COM" + p.ToString(), 115200, Parity.None, 8, StopBits.One);
@@ -109,7 +105,6 @@ namespace SerialToMqtt2
                 ComportItem ci = new ComportItem(s, Dispatcher);
                 ComPortItems.Add(ci);
                 ComPortItemsDictionary.Add(s, ci);
-
                 Trace.WriteLine(string.Format("Serial port {0} opened.", p));
             }
         }
@@ -117,131 +112,137 @@ namespace SerialToMqtt2
         private void Serial_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
             SerialPort p = sender as SerialPort;
-            if (ComPortItemsDictionary.ContainsKey(p))
+
+            Debug.Assert(ComPortItemsDictionary.ContainsKey(p));
+
+            ComportItem i = ComPortItemsDictionary[p];
+            i.ReceiveActivity();
+
+            while (p.BytesToRead > 0)
             {
-                ComportItem i = ComPortItemsDictionary[p];
-
-                i.ReceiveActivity();
-
-                while (p.BytesToRead > 0)
+                string line;
+                try
                 {
-                    string line;
-                    try
-                    {
-                        line = p.ReadLine();
-                        line = line.Trim(new char[] { '\r', 'n' });     // not supposed to be there, throw away if they are
-                    }
-                    catch (TimeoutException)
-                    {
-                        Trace.WriteLine("timeout on ReadLine()", "warn");
-                        break;
-                    }
-                    catch (System.IO.IOException)
-                    {
-                        break;
-                    }
+                    line = p.ReadLine();
+                    line = line.Trim(new char[] { '\r', 'n' });     // not supposed to be there, throw away if they are
+                }
+                catch (TimeoutException)
+                {
+                    Trace.WriteLine("timeout on ReadLine()", "warn");
+                    break;
+                }
+                catch (System.IO.IOException)
+                {
+                    break;
+                }
 
-                    // comments ok, echo'd
-                    if (line.StartsWith("//"))
+                // within a line we expect the first byte to be a sequence 1 greater than the previous
+                // and the last byte to be a CRC
+
+                // TODO
+
+                // todo line = line.Substring(1,line-length - 2);
+
+                // comments ok, echo'd
+                if (line.StartsWith("//"))
+                {
+                    Trace.WriteLine(line);
+                    continue;
+                }
+
+                if (line.Length < 4)
+                {
+                    Trace.WriteLine(string.Format("{0} framing error", p.PortName), "warn");
+                    continue;
+                }
+
+                // todo needs a thorough test
+                // parse it, it must be CMDtopic[/subTopic][{json}]
+                try
+                {
+                    string topic, subTopic = "N/A";
+                    byte[] payload = null;
+
+                    bool hasPayload = false, hasSub = false;
+                    int topicEnd, subEnd;
+
+                    int subStart = line.IndexOf('/', 4);
+                    int payloadStart = line.IndexOf('{', 4);
+
+                    if (payloadStart != -1)
                     {
-                        Trace.WriteLine(line);
-                        continue;
-                    }
-
-                    if (line.Length < 4)
-                    {
-                        Trace.WriteLine(string.Format("{0} framing error", p.PortName), "warn");
-                        continue;
-                    }
-
-                    // +++ needs a thorough test
-                    // parse it, it must be CMDtopic[/subTopic][{json}]
-                    try
-                    {
-                        string topic, subTopic = "N/A";
-                        byte[] payload = null;
-
-                        bool hasPayload = false, hasSub = false;
-                        int topicEnd, subEnd;
-
-                        int subStart = line.IndexOf('/', 4);
-                        int payloadStart = line.IndexOf('{', 4);
-
-                        if (payloadStart != -1)
+                        int payloadEnd = line.IndexOf('}', 4);
+                        if (payloadEnd == -1)
                         {
-                            int payloadEnd = line.IndexOf('}', 4);
-                            if (payloadEnd == -1)
+                            Trace.WriteLine("Improperly formatted payload, msg discarded", "warn");
+                            return;
+                        }
+                        payload = line.Substring(payloadStart, payloadEnd - payloadStart + 1).ToBytes();
+                        hasPayload = true;
+                    }
+
+                    if (subStart != -1)
+                    {
+                        subEnd = hasPayload ? payloadStart - 1 : line.Length;
+                        subTopic = line.Substring(subStart + 1, subEnd - subStart);
+                        hasSub = true;
+                    }
+
+                    topicEnd = hasSub ? subStart - 1 : hasPayload ? payloadStart - 1 : line.Length - 1;
+                    topic = line.Substring(3, topicEnd - 2);
+
+                    var x = spiked3.extensions.HexDump(payload, 32).Trim(new char[] { '\r', '\n' });
+                    Trace.WriteLine(string.Format("{0} incoming {1}/{2} |{3}|", p.PortName, topic, subTopic, x), "3");
+
+                    switch (line.Substring(0, 3))
+                    {
+                        case "PUB":
+                            Dispatcher.InvokeAsync(() =>
                             {
-                                Trace.WriteLine("Improperly formatted payload, msg discarded", "warn");
-                                return;
+                                Trace.WriteLine(string.Format("DataReceived {0}, Publish topic({1})", p.PortName, topic), "2");
+                                StringBuilder b = new StringBuilder();
+                                b.Append(topic);
+                                if (hasSub)
+                                    b.Append('/' + subTopic);
+                                Mqtt.Publish(b.ToString(), payload, MqttMsgBase.QOS_LEVEL_AT_LEAST_ONCE, false); // or QOS_LEVEL_AT_LEAST_ONCE
+                            });
+                            break;
+
+                        case "SUB":
+                            Trace.WriteLine(string.Format("{0} Subscribed topic({1})", p.PortName, topic), "1");
+                            if (!TopicListeners.ContainsKey(topic))
+                            {
+                                TopicListeners.Add(topic, new List<SerialPort>());
+                                Mqtt.Subscribe(new string[] { topic + "/#" }, new byte[] { MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE });
                             }
-                            payload = line.Substring(payloadStart, payloadEnd - payloadStart + 1).ToBytes();
-                            hasPayload = true;
-                        }
+                            TopicListeners[topic].Add(p);
+                            break;
 
-                        if (subStart != -1)
-                        {
-                            subEnd = hasPayload ? payloadStart - 1 : line.Length;
-                            subTopic = line.Substring(subStart + 1, subEnd - subStart);
-                            hasSub = true;
-                        }
+                        case "UNS":
+                            System.Diagnostics.Debugger.Break();
+                            topic = line.Substring(3);
+                            Trace.WriteLine(string.Format("{0} Unsubscribed topic({1})", p.PortName, topic), "1");
 
-                        topicEnd = hasSub ? subStart - 1 : hasPayload ? payloadStart - 1 : line.Length - 1;
-                        topic = line.Substring(3, topicEnd - 2);
-
-                        var x = spiked3.extensions.HexDump(payload, 32).Trim(new char[] { '\r', '\n' });
-                        Trace.WriteLine(string.Format("{0} incoming {1}/{2} |{3}|", p.PortName, topic, subTopic, x), "3");
-
-                        switch (line.Substring(0, 3))
-                        {
-                            case "PUB":
-                                Dispatcher.InvokeAsync(() =>
+                            if (TopicListeners.ContainsKey(topic))
+                            {
+                                for (int j = 0; j < TopicListeners[topic].Count; j++)
+                                    TopicListeners[topic].Remove(p);
+                                if (TopicListeners[topic].Count < 1)    // if no listeners remain
                                 {
-                                    Trace.WriteLine(string.Format("DataReceived {0}, Publish topic({1})", p.PortName, topic), "2");
-                                    StringBuilder b = new StringBuilder();
-                                    b.Append(topic);
-                                    if (hasSub)
-                                        b.Append('/' + subTopic);
-                                    Mqtt.Publish(b.ToString(), payload, MqttMsgBase.QOS_LEVEL_AT_LEAST_ONCE, false);
-                                });
-                                break;
-
-                            case "SUB":
-                                Trace.WriteLine(string.Format("{0} Subscribed topic({1})", p.PortName, topic), "1");
-                                if (!TopicListeners.ContainsKey(topic))
-                                {
-                                    TopicListeners.Add(topic, new List<SerialPort>());
-                                    Mqtt.Subscribe(new string[] { topic + "/#" }, new byte[] { MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE });
+                                    Mqtt.Unsubscribe(new string[] { topic });
+                                    Trace.WriteLine(string.Format("Bridge Unsubscribed topic({0})", topic), "1");
                                 }
-                                TopicListeners[topic].Add(p);
-                                break;
+                            }
+                            break;
 
-                            case "UNS":
-                                System.Diagnostics.Debugger.Break();
-                                topic = line.Substring(3);
-                                Trace.WriteLine(string.Format("{0} Unsubscribed topic({1})", p.PortName, topic), "1");
-
-                                if (TopicListeners.ContainsKey(topic))
-                                {
-                                    for (int j = 0; j < TopicListeners[topic].Count; j++)
-                                        TopicListeners[topic].Remove(p);
-                                    if (TopicListeners[topic].Count < 1)
-                                    {
-                                        Mqtt.Unsubscribe(new string[] { topic });
-                                        Trace.WriteLine(string.Format("Bridge Unsubscribed topic({0})", topic), "1");
-                                    }
-                                }
-                                break;
-
-                            default:
-                                Trace.WriteLine(string.Format("{0}, Unkown data error", p.PortName), "warn");
-                                break;
-                        }
+                        default:
+                            Trace.WriteLine(string.Format("{0}, Unkown data error", p.PortName), "warn");
+                            break;
                     }
-                    catch (Exception ex)
-                    {   // errors make it through - ignore
-                        Trace.WriteLine(string.Format("{0}, Rcv exception: {1}", p.PortName, ex.Message), "warn");
-                    }
+                }
+                catch (Exception ex) // errors make it through - ignore
+                {
+                    Trace.WriteLine(string.Format("{0}, Rcv exception {1} ignored", p.PortName, ex.Message), "warn");
                 }
             }
         }
@@ -249,25 +250,20 @@ namespace SerialToMqtt2
         private void MqttMsgPublishReceived(object sender, uPLibrary.Networking.M2Mqtt.Messages.MqttMsgPublishEventArgs e)
         {
             foreach (var key in TopicListeners.Keys)
-            {
                 if (e.Topic.StartsWith(key))
-                {
                     Dispatcher.InvokeAsync(() =>
                     {
-                        Trace.WriteLine(string.Format("Found subscriber list for {0}", e.Topic), "1");
+                        Trace.WriteLine(string.Format("Found subscriber list for {0}", e.Topic), "2");
                         foreach (var p in TopicListeners[key])
                         {
-                            Trace.WriteLine(string.Format("MqttPublish {0}", p.PortName), "1");
-                            ComPortItemsDictionary[p].TransmitActivity();
-                            Trace.WriteLine(e.Topic, "2");
+                            Trace.WriteLine(string.Format("..MqttPublish {0} / {1}", p.PortName, e.Topic), "2");
                             Trace.WriteLine(spiked3.extensions.HexDump(e.Message, 32), "3");
+                            ComPortItemsDictionary[p].TransmitActivity();
                             p.Write(e.Topic);
                             p.Write(e.Message, 0, e.Message.Length);
                             p.Write("\n");
                         }
                     });
-                }
-            }
         }
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)

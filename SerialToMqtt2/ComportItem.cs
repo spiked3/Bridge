@@ -38,6 +38,8 @@ namespace SerialToMqtt2
 
         private DispatcherTimer DispatchTimer;
 
+        public int LastSequence { get; set; }
+
         public ComportItem(SerialPort s, Dispatcher d)
         {
             SerialPort = s;
@@ -47,13 +49,13 @@ namespace SerialToMqtt2
 
         private void TimerTick(object sender, EventArgs e)
         {
-            if (ReceiveLightOffAt.HasValue && DateTime.Now > ReceiveLightOffAt)
+            if (ReceiveLightOffAt.HasValue && DateTime.Now > ReceiveLightOffAt.Value)
             {
                 ReceiveBrush = Brushes.DarkRed;
                 ReceiveLightOffAt = null;
             }
 
-            if (TransmitLightOffAt.HasValue && DateTime.Now > TransmitLightOffAt)
+            if (TransmitLightOffAt.HasValue && DateTime.Now > TransmitLightOffAt.Value)
             {
                 TransmitBrush = Brushes.DarkRed;
                 TransmitLightOffAt = null;
