@@ -9,7 +9,7 @@ namespace SerialToMqtt2
 {
     public class ComportItem : INotifyPropertyChanged, IDisposable
     {
-        //+++ should be disposable to kill timer?
+        //+++ should be disposable to kill timer? (but timer doesnt have a dispose)
 
         #region INotifyPropertyChanged
 

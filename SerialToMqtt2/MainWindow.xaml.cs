@@ -28,7 +28,8 @@ namespace SerialToMqtt2
 
         public ObservableCollection<ComportItem> ComPortItems { get; set; }
 
-        private byte[] CompPortsToMonitor = { 3, 4, 5, 14 };
+        private string[] CompPortsToMonitor = { "com3", "com4", "com5", "com14" };
+        private int[] ComPortsBaud = { 115200, 115200, 115200, 57600 };
 
         private Dictionary<string, List<SerialPort>> TopicListeners = new Dictionary<string, List<SerialPort>>();
         private Dictionary<SerialPort, ComportItem> ComPortItemsDictionary = new Dictionary<SerialPort, ComportItem>();
@@ -86,17 +87,17 @@ namespace SerialToMqtt2
         private void StartSerial()
         {
             StopSerial();
-            foreach (var p in CompPortsToMonitor)
+            for (int i = 0; i < CompPortsToMonitor.Length; i++)
             {
                 SerialPort s;
                 try
                 {
-                    s = new SerialPort("COM" + p.ToString(), 115200, Parity.None, 8, StopBits.One);
+                    s = new SerialPort(CompPortsToMonitor[i], ComPortsBaud[i], Parity.None, 8, StopBits.One);
                     s.Open();
                 }
                 catch (Exception)
                 {
-                    Trace.WriteLine(string.Format("Serial port {0} failed to open, skipping.", p), "1");
+                    Trace.WriteLine(string.Format("Serial port {0} failed to open, skipping.", CompPortsToMonitor[i]), "1");
                     continue;
                 }
 
@@ -105,7 +106,7 @@ namespace SerialToMqtt2
                 ComportItem ci = new ComportItem(s, Dispatcher);
                 ComPortItems.Add(ci);
                 ComPortItemsDictionary.Add(s, ci);
-                Trace.WriteLine(string.Format("Serial port {0} opened.", p));
+                Trace.WriteLine(string.Format("Serial port {0} opened.", CompPortsToMonitor[i]));
             }
         }
 
@@ -131,8 +132,9 @@ namespace SerialToMqtt2
                     Trace.WriteLine("timeout on ReadLine()", "warn");
                     break;
                 }
-                catch (System.IO.IOException)
+                catch (System.IO.IOException ioe)
                 {
+                    Trace.WriteLine("System.IO.IOException: " + ioe.Message, "warn");
                     break;
                 }
 
@@ -183,7 +185,7 @@ namespace SerialToMqtt2
 
                     if (subStart != -1)
                     {
-                        subEnd = hasPayload ? payloadStart - 1 : line.Length;
+                        subEnd = hasPayload ? payloadStart - 1 : line.Length - 1;
                         subTopic = line.Substring(subStart + 1, subEnd - subStart);
                         hasSub = true;
                     }
