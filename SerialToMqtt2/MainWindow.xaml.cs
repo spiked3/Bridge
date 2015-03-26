@@ -9,6 +9,8 @@ using System.Windows;
 using System.Windows.Controls.Ribbon;
 using uPLibrary.Networking.M2Mqtt;
 using uPLibrary.Networking.M2Mqtt.Messages;
+using Newtonsoft.Json;
+
 
 namespace SerialToMqtt2
 {
@@ -17,19 +19,17 @@ namespace SerialToMqtt2
     /// </summary>
     public partial class MainWindow : RibbonWindow
     {
-        // provide serial to mqtt bridge
-        //   clients invisioned are APIs for arduino and netduino, and maybe LEGO RobotC
         // attempt to open each specified com port, dont freak out if fails
         // listen on ports sucessfully opened
-        // accept pub, sub, unsub commands
+        // accept // comment, SUB:, UNS: commands, anything else, publish
         // todo port closing drops subscriptions
         // todo sequence and CRC support on serial link
         // todo make ports to monitor a parameter
 
         public ObservableCollection<ComportItem> ComPortItems { get; set; }
 
-        private string[] CompPortsToMonitor = { "com3", "com4", "com5", "com14" };
-        private int[] ComPortsBaud = { 115200, 115200, 115200, 57600 };
+        private string[] CompPortsToMonitor = { "com14" };
+        private int[] ComPortsBaud = { 9600 };
 
         private Dictionary<string, List<SerialPort>> TopicListeners = new Dictionary<string, List<SerialPort>>();
         private Dictionary<SerialPort, ComportItem> ComPortItemsDictionary = new Dictionary<SerialPort, ComportItem>();
@@ -56,9 +56,9 @@ namespace SerialToMqtt2
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            spiked3.Console.MessageLevel = 1;
+            spiked3.Console.MessageLevel = 4;
 
-            Trace.WriteLine("MQTT to Serial Bridge 2/WPF © 2015 Spiked3.com", "+");
+            Trace.WriteLine("MQTT to Serial Bridge 2.1/WPF © 2015 Spiked3.com", "+");
 
             Trace.WriteLine("Connecting to broker ...", "1");
             Mqtt = new MqttClient(Broker);
@@ -125,7 +125,7 @@ namespace SerialToMqtt2
                 try
                 {
                     line = p.ReadLine();
-                    line = line.Trim(new char[] { '\r', 'n' });     // not supposed to be there, throw away if they are
+                    line = line.Trim(new char[] { '\r', '\n' });     // not supposed to be there, throw away if they are
                 }
                 catch (TimeoutException)
                 {
@@ -138,13 +138,6 @@ namespace SerialToMqtt2
                     break;
                 }
 
-                // within a line we expect the first byte to be a sequence 1 greater than the previous
-                // and the last byte to be a CRC
-
-                // TODO
-
-                // todo line = line.Substring(1,line-length - 2);
-
                 // comments ok, echo'd
                 if (line.StartsWith("//"))
                 {
@@ -152,100 +145,64 @@ namespace SerialToMqtt2
                     continue;
                 }
 
-                if (line.Length < 4)
+                if (line.Length < 3)
                 {
                     Trace.WriteLine(string.Format("{0} framing error", p.PortName), "warn");
+                    // attempt to recover
+                    p.ReadTo("\n");
                     continue;
                 }
 
-                // todo needs a thorough test
-                // parse it, it must be CMDtopic[/subTopic][{json}]
-                try
+                if (line.StartsWith("SUB:"))
                 {
-                    string topic, subTopic = "N/A";
-                    byte[] payload = null;
-
-                    bool hasPayload = false, hasSub = false;
-                    int topicEnd, subEnd;
-
-                    int subStart = line.IndexOf('/', 4);
-                    int payloadStart = line.IndexOf('{', 4);
-
-                    if (payloadStart != -1)
+                    try
                     {
-                        int payloadEnd = line.IndexOf('}', 4);
-                        if (payloadEnd == -1)
+                        string Topic = line.Substring(4);
+                        if (!TopicListeners.ContainsKey(Topic))
                         {
-                            Trace.WriteLine("Improperly formatted payload, msg discarded", "warn");
-                            return;
+                            TopicListeners.Add(Topic, new List<SerialPort>());
+                            Mqtt.Subscribe(new string[] { Topic }, new byte[] { MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE });
                         }
-                        payload = line.Substring(payloadStart, payloadEnd - payloadStart + 1).ToBytes();
-                        hasPayload = true;
+                        TopicListeners[Topic].Add(p);
                     }
-
-                    if (subStart != -1)
+                    catch (Exception ex)
                     {
-                        subEnd = hasPayload ? payloadStart - 1 : line.Length - 1;
-                        subTopic = line.Substring(subStart + 1, subEnd - subStart);
-                        hasSub = true;
-                    }
-
-                    topicEnd = hasSub ? subStart - 1 : hasPayload ? payloadStart - 1 : line.Length - 1;
-                    topic = line.Substring(3, topicEnd - 2);
-
-                    var x = spiked3.extensions.HexDump(payload, 32).Trim(new char[] { '\r', '\n' });
-                    Trace.WriteLine(string.Format("{0} incoming {1}/{2} |{3}|", p.PortName, topic, subTopic, x), "3");
-
-                    switch (line.Substring(0, 3))
-                    {
-                        case "PUB":
-                            Dispatcher.InvokeAsync(() =>
-                            {
-                                Trace.WriteLine(string.Format("DataReceived {0}, Publish topic({1})", p.PortName, topic), "2");
-                                StringBuilder b = new StringBuilder();
-                                b.Append(topic);
-                                if (hasSub)
-                                    b.Append('/' + subTopic);
-                                Mqtt.Publish(b.ToString(), payload, MqttMsgBase.QOS_LEVEL_AT_LEAST_ONCE, false); // or QOS_LEVEL_AT_LEAST_ONCE
-                            });
-                            break;
-
-                        case "SUB":
-                            Trace.WriteLine(string.Format("{0} Subscribed topic({1})", p.PortName, topic), "1");
-                            if (!TopicListeners.ContainsKey(topic))
-                            {
-                                TopicListeners.Add(topic, new List<SerialPort>());
-                                Mqtt.Subscribe(new string[] { topic + "/#" }, new byte[] { MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE });
-                            }
-                            TopicListeners[topic].Add(p);
-                            break;
-
-                        case "UNS":
-                            System.Diagnostics.Debugger.Break();
-                            topic = line.Substring(3);
-                            Trace.WriteLine(string.Format("{0} Unsubscribed topic({1})", p.PortName, topic), "1");
-
-                            if (TopicListeners.ContainsKey(topic))
-                            {
-                                for (int j = 0; j < TopicListeners[topic].Count; j++)
-                                    TopicListeners[topic].Remove(p);
-                                if (TopicListeners[topic].Count < 1)    // if no listeners remain
-                                {
-                                    Mqtt.Unsubscribe(new string[] { topic });
-                                    Trace.WriteLine(string.Format("Bridge Unsubscribed topic({0})", topic), "1");
-                                }
-                            }
-                            break;
-
-                        default:
-                            Trace.WriteLine(string.Format("{0}, Unkown data error", p.PortName), "warn");
-                            break;
+                        Trace.WriteLine("recv Exception-> " + line, "error");
+                        Trace.WriteLine(ex.Message, "2");
                     }
                 }
-                catch (Exception ex) // errors make it through - ignore
+                else
                 {
-                    Trace.WriteLine(string.Format("{0}, Rcv exception {1} ignored", p.PortName, ex.Message), "warn");
+                    try
+                    {
+                        dynamic j = JsonConvert.DeserializeObject(line);
+                        Mqtt.Publish((string)j.Topic, UTF8Encoding.ASCII.GetBytes(line));
+                        Trace.WriteLine("pub-> " + line, "2");
+                    }
+                    catch (Exception ex)
+                    {
+                        Trace.WriteLine("recv Exception-> " + line, "error");
+                        Trace.WriteLine(ex.Message, "2");
+                    }
                 }
+
+
+                // +++ unsubscribe
+                //        case "UNS":
+                //            System.Diagnostics.Debugger.Break();
+                //            topic = line.Substring(3);
+                //            Trace.WriteLine(string.Format("{0} Unsubscribed topic({1})", p.PortName, topic), "1");
+                //            if (TopicListeners.ContainsKey(topic))
+                //            {
+                //                for (int j = 0; j < TopicListeners[topic].Count; j++)
+                //                    TopicListeners[topic].Remove(p);
+                //                if (TopicListeners[topic].Count < 1)    // if no listeners remain
+                //                {
+                //                    Mqtt.Unsubscribe(new string[] { topic });
+                //                    Trace.WriteLine(string.Format("Bridge Unsubscribed topic({0})", topic), "1");
+                //                }
+                //            }
+                //            break;
             }
         }
 
