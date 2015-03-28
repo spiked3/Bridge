@@ -56,7 +56,7 @@ namespace SerialToMqtt2
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            spiked3.Console.MessageLevel = 4;
+            spiked3.Console.MessageLevel = 4;   // default
 
             Trace.WriteLine("MQTT to Serial Bridge 2.1/WPF © 2015 Spiked3.com", "+");
 
@@ -72,6 +72,7 @@ namespace SerialToMqtt2
 
         private void StopSerial()
         {
+            Trace.WriteLine("StopSerial", "2");
             foreach (SerialPort s in ComPortItemsDictionary.Keys)
                 if (s.IsOpen)
                 {
@@ -87,6 +88,7 @@ namespace SerialToMqtt2
         private void StartSerial()
         {
             StopSerial();
+            Trace.WriteLine("StartSerial", "2");
             for (int i = 0; i < CompPortsToMonitor.Length; i++)
             {
                 SerialPort s;
@@ -177,7 +179,7 @@ namespace SerialToMqtt2
                     {
                         dynamic j = JsonConvert.DeserializeObject(line);
                         Mqtt.Publish((string)j.Topic, UTF8Encoding.ASCII.GetBytes(line));
-                        Trace.WriteLine("pub-> " + line, "2");
+                        Trace.WriteLine("pub-> " + line, "3");
                     }
                     catch (Exception ex)
                     {
