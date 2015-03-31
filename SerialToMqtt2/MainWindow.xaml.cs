@@ -70,12 +70,26 @@ namespace SerialToMqtt2
             StartSerial();
         }
 
+        void Unsubscribe(SerialPort s)
+        {
+            foreach (string topic in TopicListeners.Keys)
+            {
+                TopicListeners[topic].Remove(s);
+                if (TopicListeners[topic].Count == 0)
+                {
+                    Trace.WriteLine(string.Format("{0} unsubscribed {1}", s.PortName, topic), "2");
+                    Mqtt.Unsubscribe(new[] { topic });
+                }
+            }
+        }
+
         private void StopSerial()
         {
             Trace.WriteLine("StopSerial", "2");
             foreach (SerialPort s in ComPortItemsDictionary.Keys)
                 if (s.IsOpen)
                 {
+                    Unsubscribe(s);
                     s.DataReceived -= Serial_DataReceived;
                     s.Close();
                     Trace.WriteLine(string.Format("Closed {0}", s.PortName), "1");
@@ -155,6 +169,7 @@ namespace SerialToMqtt2
                     continue;
                 }
 
+                // +++ new new format
                 if (line.StartsWith("SUB:"))
                 {
                     try
@@ -162,9 +177,12 @@ namespace SerialToMqtt2
                         string Topic = line.Substring(4);
                         if (!TopicListeners.ContainsKey(Topic))
                         {
+                            string mqttTopic = Topic + "/#";
+                            Trace.WriteLine(string.Format("subscribe {0}", mqttTopic), "2");
+                            Mqtt.Subscribe(new string[] { mqttTopic }, new byte[] { MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE });
                             TopicListeners.Add(Topic, new List<SerialPort>());
-                            Mqtt.Subscribe(new string[] { Topic }, new byte[] { MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE });
                         }
+                        Trace.WriteLine(string.Format("{0} listen {1}", p.PortName, Topic), "2");
                         TopicListeners[Topic].Add(p);
                     }
                     catch (Exception ex)
@@ -210,18 +228,18 @@ namespace SerialToMqtt2
 
         private void MqttMsgPublishReceived(object sender, uPLibrary.Networking.M2Mqtt.Messages.MqttMsgPublishEventArgs e)
         {
+            // we have a topic we can assume we subscribed to, which com port wants it?            
             foreach (var key in TopicListeners.Keys)
                 if (e.Topic.StartsWith(key))
                     Dispatcher.InvokeAsync(() =>
                     {
-                        Trace.WriteLine(string.Format("Found subscriber list for {0}", e.Topic), "2");
+                        Trace.WriteLine(string.Format("Found subscribers for {0}", e.Topic), "2");
                         foreach (var p in TopicListeners[key])
                         {
-                            Trace.WriteLine(string.Format("..MqttPublish {0} / {1}", p.PortName, e.Topic), "2");
-                            Trace.WriteLine(spiked3.extensions.HexDump(e.Message, 32), "3");
                             ComPortItemsDictionary[p].TransmitActivity();
-                            p.Write(e.Topic);
-                            p.Write(e.Message, 0, e.Message.Length);
+                            Trace.WriteLine(string.Format("{0} <- {1}", p.PortName, e.Topic), "2");
+                            Trace.WriteLine(spiked3.extensions.HexDump(e.Message, 32), "3");
+                            p.Write(System.Text.Encoding.UTF8.GetString(e.Message));
                             p.Write("\n");
                         }
                     });
