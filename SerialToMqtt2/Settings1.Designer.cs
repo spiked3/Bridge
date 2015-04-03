@@ -70,5 +70,17 @@ namespace SerialToMqtt2 {
                 this["Left"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string lastBagFile {
+            get {
+                return ((string)(this["lastBagFile"]));
+            }
+            set {
+                this["lastBagFile"] = value;
+            }
+        }
     }
 }

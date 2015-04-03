@@ -61,6 +61,7 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="Bagger.cs" />
     <Compile Include="Plumbing\Console.xaml.cs" />
     <Compile Include="Plumbing\Extensions.cs" />
     <Compile Include="Settings1.Designer.cs">
@@ -134,6 +135,13 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Plumbing\Clean.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Log file icon 2.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Images\Arrowhead-Right.png" />
+    <Resource Include="Images\Media-Stop.png" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

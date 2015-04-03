@@ -28,14 +28,17 @@ namespace SerialToMqtt2
 
         public ObservableCollection<ComportItem> ComPortItems { get; set; }
 
-        private string[] CompPortsToMonitor = { "com14", "com15" };
-        private int[] ComPortsBaud = { 9600, 9600 };
+        private string[] CompPortsToMonitor = { "com4", "com14", "com15" };
+        private int[] ComPortsBaud = { 9600, 9600, 9600 };
 
         private Dictionary<string, List<SerialPort>> TopicListeners = new Dictionary<string, List<SerialPort>>();
         private Dictionary<SerialPort, ComportItem> ComPortItemsDictionary = new Dictionary<SerialPort, ComportItem>();
 
         private const string Broker = "127.0.0.1";
         public MqttClient Mqtt;
+
+        bool baggerEna = false;
+        Bagger Bagger;
 
         public MainWindow()
         {
@@ -285,9 +288,27 @@ namespace SerialToMqtt2
             StopSerial();
         }
 
-        private void Test_Click(object sender, RoutedEventArgs e)
+        private void Bag_Unchecked(object sender, RoutedEventArgs e)
         {
-            Console1.Test();
+        }
+
+        private void Bag_Checked(object sender, RoutedEventArgs e)
+        {
+        }
+
+        private void RibbonToggleButton_Checked(object sender, RoutedEventArgs e)
+        {
+            Bagger = Bagger.Factory(baggerNew.IsChecked ?? false);
+            System.Diagnostics.Trace.Listeners.Add(Bagger);
+        }
+
+        private void RibbonToggleButton_Unchecked(object sender, RoutedEventArgs e)
+        {
+            if (Bagger != null)
+            {
+                Bagger.Close();
+                System.Diagnostics.Trace.Listeners.Remove(Bagger);
+            }
         }
     }
 }

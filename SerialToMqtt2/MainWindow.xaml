@@ -22,7 +22,7 @@
         </DataTemplate>
     </RibbonWindow.Resources>
     <DockPanel LastChildFill="True">
-        <Ribbon DockPanel.Dock="Top" Height="118">
+        <Ribbon DockPanel.Dock="Top" >
             <Ribbon.QuickAccessToolBar>
                 <RibbonQuickAccessToolBar>
                 </RibbonQuickAccessToolBar>
@@ -30,14 +30,18 @@
             <Ribbon.ApplicationMenu>
                 <RibbonApplicationMenu>
                     <RibbonButton Label="Exit" LargeImageSource="Images/Shut down .png" Click="Exit_Click" />
-                    <RibbonButton Label="Test" Click="Test_Click"  />
+                    <RibbonButton Label="ComPorts ..." />
                 </RibbonApplicationMenu>
             </Ribbon.ApplicationMenu>
 
             <RibbonTab Header="Main">
-                <RibbonGroup>
+                <RibbonGroup >
                     <RibbonButton Label="Start" LargeImageSource="Images/Media-Play.png" Click="Start_Click" />
                     <RibbonButton Label="Stop" LargeImageSource="Images/No-01.png" Click="Stop_Click" />
+                </RibbonGroup>
+                <RibbonGroup Header="Bag">
+                    <RibbonToggleButton Label="Record" LargeImageSource="Images/Arrowhead-Right.png" Checked="RibbonToggleButton_Checked" Unchecked="RibbonToggleButton_Unchecked" />
+                    <RibbonCheckBox x:Name="baggerNew" Label="New"  />
                 </RibbonGroup>
             </RibbonTab>
         </Ribbon>
