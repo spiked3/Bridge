@@ -29,7 +29,7 @@ namespace SerialToMqtt2
         public ObservableCollection<ComportItem> ComPortItems { get; set; }
 
         private string[] CompPortsToMonitor = { "com3", "com4", "com14", "com15" };
-        private int[] ComPortsBaud = { 9600, 9600, 9600, 9600 };
+        private int[] ComPortsBaud = { 9600, 115200, 9600, 9600 };
 
         private Dictionary<string, List<SerialPort>> TopicListeners = new Dictionary<string, List<SerialPort>>();
         private Dictionary<SerialPort, ComportItem> ComPortItemsDictionary = new Dictionary<SerialPort, ComportItem>();
@@ -37,7 +37,6 @@ namespace SerialToMqtt2
         private const string Broker = "127.0.0.1";
         public MqttClient Mqtt;
 
-        bool baggerEna = false;
         Bagger Bagger;
 
         public MainWindow()
@@ -183,7 +182,6 @@ namespace SerialToMqtt2
                     continue;
                 }
 
-                // +++ new new format
                 if (line.StartsWith("SUB:"))
                 {
                     try
@@ -211,7 +209,7 @@ namespace SerialToMqtt2
                     {
                         dynamic j = JsonConvert.DeserializeObject(line);
                         Mqtt.Publish((string)j.Topic, UTF8Encoding.ASCII.GetBytes(line));
-                        Trace.WriteLine("pub-> " + line, "3");
+                        Trace.WriteLine("#PUB# " + line, "3");
                     }
                     catch (Exception ex)
                     {
@@ -250,6 +248,7 @@ namespace SerialToMqtt2
                         Trace.WriteLine(string.Format("Found subscribers for {0}", e.Topic), "2");
                         foreach (var p in TopicListeners[key])
                         {
+                            // trace.writeline ("#PUB#")
                             ComPortItemsDictionary[p].TransmitActivity();
                             Trace.WriteLine(string.Format("{0} <- {1}", p.PortName, e.Topic), "2");
                             Trace.WriteLine(spiked3.extensions.HexDump(e.Message, 32), "3");
