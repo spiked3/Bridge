@@ -30,6 +30,8 @@ namespace SerialToMqtt2
 
         public string Name { get { return _Name; } set { _Name = value; OnPropertyChanged(); } } private string _Name;
 
+        public string Topic { get { return _Topic; } set { _Topic = value; OnPropertyChanged(); } } private string _Topic;
+
         public Brush ReceiveBrush { get { return _ReceiveBrush; } set { _ReceiveBrush = value; OnPropertyChanged(); } } private Brush _ReceiveBrush = Brushes.DarkRed;
 
         public Brush TransmitBrush { get { return _TransmitBrush; } set { _TransmitBrush = value; OnPropertyChanged(); } } private Brush _TransmitBrush = Brushes.DarkRed;

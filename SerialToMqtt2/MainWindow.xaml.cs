@@ -28,6 +28,7 @@ namespace SerialToMqtt2
 
         public ObservableCollection<ComportItem> ComPortItems { get; set; }
 
+        private string[] Topics = { "robot1", "robot1", "robot1", "robot1" };
         private string[] CompPortsToMonitor = { "com3", "com4", "com14", "com15" };
         private int[] ComPortsBaud = { 115200, 115200, 9600, 9600 };
 
@@ -123,9 +124,16 @@ namespace SerialToMqtt2
                 s.ReadTimeout = 1000;
                 s.DataReceived += Serial_DataReceived;
                 ComportItem ci = new ComportItem(s, Dispatcher);
+                ci.Topic = Topics[i];
                 ComPortItems.Add(ci);
                 ComPortItemsDictionary.Add(s, ci);
                 Trace.WriteLine(string.Format("Serial port {0} opened.", CompPortsToMonitor[i]));
+
+                string subTopic = ci.Topic + "/Cmd";
+                Mqtt.Subscribe(new string[] { subTopic }, new byte[] { MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE });
+                TopicListeners.Add(subTopic, new List<SerialPort>());
+                Trace.WriteLine(string.Format("{0} listen {1}", s.PortName, subTopic), "2");
+                TopicListeners[subTopic].Add(s);
             }
         }
 
@@ -182,34 +190,14 @@ namespace SerialToMqtt2
                     continue;
                 }
 
-                if (line.StartsWith("SUB:"))
-                {
-                    try
-                    {
-                        string Topic = line.Substring(4);
-                        if (!TopicListeners.ContainsKey(Topic))
-                        {
-                            string mqttTopic = Topic + "/#";
-                            Trace.WriteLine(string.Format("subscribe {0}", mqttTopic), "2");
-                            Mqtt.Subscribe(new string[] { mqttTopic }, new byte[] { MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE });
-                            TopicListeners.Add(Topic, new List<SerialPort>());
-                        }
-                        Trace.WriteLine(string.Format("{0} listen {1}", p.PortName, Topic), "2");
-                        TopicListeners[Topic].Add(p);
-                    }
-                    catch (Exception ex)
-                    {
-                        Trace.WriteLine("recv Exception-> " + line, "error");
-                        Trace.WriteLine(ex.Message, "2");
-                    }
-                }
                 else
                 {
                     try
                     {
                         dynamic j = JsonConvert.DeserializeObject(line);
-                        Mqtt.Publish((string)j.Topic, UTF8Encoding.ASCII.GetBytes(line));
-                        Trace.WriteLine("#PUB# " + line, "3");
+                        //Mqtt.Publish((string)j.Topic, UTF8Encoding.ASCII.GetBytes(line));
+                        Mqtt.Publish(i.Topic, UTF8Encoding.ASCII.GetBytes(line));
+                        Trace.WriteLine("#PUB# " + i.Topic + " " + line, "3");
                     }
                     catch (Exception ex)
                     {
