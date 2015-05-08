@@ -14,18 +14,8 @@ using Newtonsoft.Json;
 
 namespace SerialToMqtt2
 {
-    /// <summary>
-    /// Interaction logic for MainWindow.xaml
-    /// </summary>
     public partial class MainWindow : RibbonWindow
     {
-        // attempt to open each specified com port, dont freak out if fails
-        // listen on ports sucessfully opened
-        // accept // comment, SUB:, UNS: commands, anything else, publish
-        // todo port closing drops subscriptions
-        // todo sequence and CRC support on serial link
-        // todo make ports to monitor a parameter
-
         public ObservableCollection<ComportItem> ComPortItems { get; set; }
 
         private string[] Topics = { "robot1", "robot1", "robot1", "robot1" };
@@ -205,24 +195,6 @@ namespace SerialToMqtt2
                         Trace.WriteLine(ex.Message, "2");
                     }
                 }
-
-
-                // +++ unsubscribe
-                //        case "UNS":
-                //            System.Diagnostics.Debugger.Break();
-                //            topic = line.Substring(3);
-                //            Trace.WriteLine(string.Format("{0} Unsubscribed topic({1})", p.PortName, topic), "1");
-                //            if (TopicListeners.ContainsKey(topic))
-                //            {
-                //                for (int j = 0; j < TopicListeners[topic].Count; j++)
-                //                    TopicListeners[topic].Remove(p);
-                //                if (TopicListeners[topic].Count < 1)    // if no listeners remain
-                //                {
-                //                    Mqtt.Unsubscribe(new string[] { topic });
-                //                    Trace.WriteLine(string.Format("Bridge Unsubscribed topic({0})", topic), "1");
-                //                }
-                //            }
-                //            break;
             }
         }
 
