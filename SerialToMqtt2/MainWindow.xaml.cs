@@ -18,9 +18,9 @@ namespace SerialToMqtt2
     {
         public ObservableCollection<ComportItem> ComPortItems { get; set; }
 
-        private string[] Topics = { "robot1", "robot1", "robot1", "robot1" };
-        private string[] CompPortsToMonitor = { "com3", "com4", "com14", "com15" };
-        private int[] ComPortsBaud = { 115200, 115200, 9600, 9600 };
+        private string[] Topics = { "robot1", "robot1", "robot1", "robot1", "robot1" };
+        private string[] CompPortsToMonitor = { "com3", "com4", "com14", "com15", "com7" };
+        private int[] ComPortsBaud = { 115200, 115200, 9600, 9600, 115200 };
 
         private Dictionary<string, List<SerialPort>> TopicListeners = new Dictionary<string, List<SerialPort>>();
         private Dictionary<SerialPort, ComportItem> ComPortItemsDictionary = new Dictionary<SerialPort, ComportItem>();
