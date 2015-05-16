@@ -95,51 +95,50 @@ namespace SerialToMqtt2
             StopSerial();
 
             Trace.WriteLine("StartSerial", "2");
-            for (int i = 0; i < CompPortsToMonitor.Length; i++)
+            foreach (var t in CompPortsToMonitor)
             {
                 SerialPort s;
                 try
                 {
-                    //s = new SerialPort(CompPortsToMonitor[i], 115200, Parity.None, 8, StopBits.One);
-                    s = new SerialPort(CompPortsToMonitor[i], 115200);
+                    s = new SerialPort(t, 115200);
 
                     s.Open();
                 }
                 catch (Exception)
                 {
-                    Trace.WriteLine(string.Format("Serial port {0} failed to open, skipping.", CompPortsToMonitor[i]), "1");
+                    Trace.WriteLine($"Serial port {t} failed to open, skipping.", "warn");
                     continue;
                 }
 
-                s.WriteTimeout = 200;
-                //s.DataReceived += Serial_DataReceived;
+                s.WriteTimeout = 500;
                 ComportItem ci = new ComportItem(s, Dispatcher);
-                SerialHandler(ci);
                 ci.Topic = "robot1";
                 ComPortItems.Add(ci);
                 ComPortItemsDictionary.Add(s, ci);
-                Trace.WriteLine(string.Format("Serial port {0} opened.", CompPortsToMonitor[i]));
+
+                SerialHandler(ci);      // processes incoming
+
+                Trace.WriteLine($"Serial port {t} opened.");
 
                 string subscribeTopic = ci.Topic + "/Cmd";
                 Mqtt.Subscribe(new string[] { subscribeTopic }, new byte[] { MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE });
                 TopicListeners.Add(subscribeTopic, new List<SerialPort>());
-                Trace.WriteLine(string.Format("{0} listen {1}", s.PortName, subscribeTopic), "2");
+                Trace.WriteLine($"{s.PortName} listen {subscribeTopic}", "3");
                 TopicListeners[subscribeTopic].Add(s);
             }
         }
 
         void ProcessLine(ComportItem ci, string line)
         {
-            // comments ok, echo'd
             if (line.StartsWith("//"))
             {
-                Trace.WriteLine(ci.SerialPort.PortName + "->" + line);
+                Trace.WriteLine(ci.SerialPort.PortName + "->" + line, "2");
                 return;
             }
-
             if (line.Length < 3)
             {
-                Trace.WriteLine(string.Format("{0} framing error", ci.SerialPort.PortName), "warn");
+                Trace.WriteLine($"{ci.SerialPort.PortName} framing error", "warn");
+                
                 // attempt to recover
                 bool recovered = false;
                 while (!recovered)
@@ -157,7 +156,7 @@ namespace SerialToMqtt2
             }
             else
             {
-                Trace.WriteLine(ci.SerialPort.PortName + "->" + line);
+                Trace.WriteLine(ci.SerialPort.PortName + "->" + line, "3");
                 try
                 {
                     dynamic j = JsonConvert.DeserializeObject(line);
@@ -188,12 +187,12 @@ namespace SerialToMqtt2
                     continue;
                 }
                 else
-                    ci.RecieveBuff[ci.RecvIdx] = (byte)b;
+                    ci.RecieveBuff[ci.RecvIdx] = b;
 
                 ci.RecvIdx++;
                 if (ci.RecvIdx >= ci.RecieveBuff.Length)
                 {
-                    System.Diagnostics.Debugger.Break();    // overflow
+                    Debugger.Break();    // overflow
                     // +++ atempt recovery
                 }
             }
@@ -218,7 +217,8 @@ namespace SerialToMqtt2
                         }
                         catch (Exception exc)
                         {
-                            Trace.WriteLine(exc.Message);
+                            Trace.WriteLine($"{ci.SerialPort.PortName} exception", "error");
+                            Trace.WriteLine(exc.Message, "2");
                         }
                         kickoffRead();
                     }
@@ -228,91 +228,20 @@ namespace SerialToMqtt2
             kickoffRead();
         }
 
-        //private void Serial_DataReceived(object sender, SerialDataReceivedEventArgs e)
-        //{
-        //    SerialPort p = sender as SerialPort;
-
-        //    Debug.Assert(ComPortItemsDictionary.ContainsKey(p));
-
-        //    ComportItem i = ComPortItemsDictionary[p];
-        //    i.ReceiveActivity();
-
-        //    while (p.BytesToRead > 0)
-        //    {
-        //        string line;
-        //        try
-        //        {
-        //            line = p.ReadLine();
-        //            line = line.Trim(new char[] { '\r', '\n' });     // not supposed to be there, throw away if they are
-        //        }
-        //        catch (TimeoutException)
-        //        {
-        //            Trace.WriteLine("timeout on ReadLine()", "warn");
-        //            break;
-        //        }
-        //        catch (System.IO.IOException ioe)
-        //        {
-        //            Trace.WriteLine("System.IO.IOException: " + ioe.Message, "warn");
-        //            break;
-        //        }
-
-        //        // comments ok, echo'd
-        //        if (line.StartsWith("//"))
-        //        {
-        //            Trace.WriteLine(line);
-        //            continue;
-        //        }
-
-        //        if (line.Length < 3)
-        //        {
-        //            Trace.WriteLine(string.Format("{0} framing error", p.PortName), "warn");
-        //            // attempt to recover
-        //            bool recovered = false;
-        //            while (!recovered)
-        //            {
-        //                try
-        //                {
-        //                    p.ReadTo("\n");
-        //                    recovered = true;
-        //                }
-        //                catch (Exception)
-        //                { }
-        //            }
-        //            continue;
-        //        }
-
-        //        else
-        //        {
-        //            try
-        //            {
-        //                dynamic j = JsonConvert.DeserializeObject(line);
-        //                //Mqtt.Publish((string)j.Topic, UTF8Encoding.ASCII.GetBytes(line));
-        //                Mqtt.Publish(i.Topic, UTF8Encoding.ASCII.GetBytes(line));
-        //                Trace.WriteLine("#PUB# " + i.Topic + " " + line, "3");
-        //            }
-        //            catch (Exception ex)
-        //            {
-        //                Trace.WriteLine("recv Exception-> " + line, "error");
-        //                Trace.WriteLine(ex.Message, "2");
-        //            }
-        //        }
-        //    }
-        //}
-
         private void MqttMsgPublishReceived(object sender, uPLibrary.Networking.M2Mqtt.Messages.MqttMsgPublishEventArgs e)
         {
-            // we have a topic we can assume we subscribed to, which com port wants it?            
+            // given a topic we can assume we subscribed to, which com port wants it?            
             foreach (var key in TopicListeners.Keys)
                 if (e.Topic.StartsWith(key))
                     Dispatcher.InvokeAsync(() =>
                     {
-                        Trace.WriteLine(string.Format("Found subscribers for {0}", e.Topic), "2");
+                        Trace.WriteLine($"Found subscribers for {e.Topic}", "3");
                         foreach (var p in TopicListeners[key])
                         {
-                            // trace.writeline ("#PUB#")
                             ComPortItemsDictionary[p].TransmitActivity();
-                            Trace.WriteLine(string.Format("{0} <- {1}", p.PortName, e.Topic), "2");
-                            Trace.WriteLine(spiked3.extensions.HexDump(e.Message, 32), "3");
+                            Trace.WriteLine($"{p.PortName} <- {e.Topic}", "3");
+                            Trace.WriteLine(spiked3.extensions.HexDump(e.Message, 32), "4");
+
                             p.Write(System.Text.Encoding.UTF8.GetString(e.Message));
                             p.Write("\n");
                         }
@@ -348,18 +277,10 @@ namespace SerialToMqtt2
             StopSerial();
         }
 
-        private void Bag_Unchecked(object sender, RoutedEventArgs e)
-        {
-        }
-
-        private void Bag_Checked(object sender, RoutedEventArgs e)
-        {
-        }
-
         private void RibbonToggleButton_Checked(object sender, RoutedEventArgs e)
         {
             Bagger = Bagger.Factory(baggerNew.IsChecked ?? false);
-            System.Diagnostics.Trace.Listeners.Add(Bagger);
+            Trace.Listeners.Add(Bagger);
         }
 
         private void RibbonToggleButton_Unchecked(object sender, RoutedEventArgs e)
@@ -367,7 +288,7 @@ namespace SerialToMqtt2
             if (Bagger != null)
             {
                 Bagger.Close();
-                System.Diagnostics.Trace.Listeners.Remove(Bagger);
+                Trace.Listeners.Remove(Bagger);
             }
         }
     }

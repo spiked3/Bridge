@@ -67,6 +67,7 @@ namespace SerialToMqtt2
             }
         }
 
+        // +++ needs work
         public void ReceiveActivity()
         {
             ReceiveBrush = _ReceiveBrush.Equals(Brushes.DarkRed) ? Brushes.Red : Brushes.DarkRed;
