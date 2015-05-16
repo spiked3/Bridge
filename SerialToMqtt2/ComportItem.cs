@@ -38,7 +38,7 @@ namespace SerialToMqtt2
 
         public SerialPort SerialPort { get { return _SerialPort; } set { _SerialPort = value; OnPropertyChanged(); } } private SerialPort _SerialPort;
 
-        private DispatcherTimer DispatchTimer;
+        public DispatcherTimer DispatchTimer { get; set; }
 
         public int LastSequence { get; set; }
 
@@ -48,6 +48,9 @@ namespace SerialToMqtt2
             DispatchTimer = new DispatcherTimer(LightsOffDelay, DispatcherPriority.Normal, TimerTick, d);
             DispatchTimer.Start();
         }
+
+        public int RecvIdx { get; set; }
+        public byte[] RecieveBuff = new byte[1024];
 
         private void TimerTick(object sender, EventArgs e)
         {
