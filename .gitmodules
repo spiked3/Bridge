@@ -3,4 +3,4 @@
 	url = //JEFF/Git2/Plumbing.git
 [submodule "SerialToMqtt2/Plumbing"]
 	path = SerialToMqtt2/Plumbing
-	url = //JEFF/Git2/Plumbing.git
+url=https://github.com/spiked3/Plumbing.git
