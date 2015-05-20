@@ -159,7 +159,7 @@ namespace SerialToMqtt2
                 Trace.WriteLine(ci.SerialPort.PortName + "->" + line, "3");
                 try
                 {
-                    dynamic j = JsonConvert.DeserializeObject(line);
+                    //dynamic j = JsonConvert.DeserializeObject(line);
                     Mqtt.Publish("robot1", UTF8Encoding.ASCII.GetBytes(line));
                     Trace.WriteLine("#PUB# " + line, "3");
                 }
