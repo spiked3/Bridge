@@ -82,7 +82,7 @@ namespace SerialToMqtt2
                 {
                     Unsubscribe(s);
                     s.DiscardInBuffer();
-                    s.Close();
+                    s.Close();  // +++ frequently locks up
                     Trace.WriteLine(string.Format("Closed {0}", s.PortName), "1");
                 }
             ComPortItemsDictionary.Clear();
@@ -159,9 +159,8 @@ namespace SerialToMqtt2
                 Trace.WriteLine(ci.SerialPort.PortName + "->" + line, "3");
                 try
                 {
-                    //dynamic j = JsonConvert.DeserializeObject(line);
+                    Trace.WriteLine("#PUB# " + line, "5");
                     Mqtt.Publish("robot1", UTF8Encoding.ASCII.GetBytes(line));
-                    Trace.WriteLine("#PUB# " + line, "3");
                 }
                 catch (Exception ex)
                 {
@@ -176,24 +175,19 @@ namespace SerialToMqtt2
             Dispatcher.InvokeAsync(() => { ci.ReceiveActivity(); });
             foreach (var b in received)
             {
-                if (b == '\r')
-                    continue;
-                else if (b == '\n')
+                if (b == '\n')
                 {
                     ci.RecieveBuff[ci.RecvIdx] = 0;
                     string line = Encoding.UTF8.GetString(ci.RecieveBuff, 0, ci.RecvIdx); // makes a copy
                     Dispatcher.InvokeAsync(() => { ProcessLine(ci, line); });
                     ci.RecvIdx = 0;
-                    continue;
                 }
                 else
-                    ci.RecieveBuff[ci.RecvIdx] = b;
-
-                ci.RecvIdx++;
-                if (ci.RecvIdx >= ci.RecieveBuff.Length)
                 {
-                    Debugger.Break();    // overflow
-                    // +++ atempt recovery
+                    if (b !=  '\r')
+                        ci.RecieveBuff[ci.RecvIdx++] = b;
+                    if (ci.RecvIdx >= ci.RecieveBuff.Length)
+                        Debugger.Break();    // overflow +++ atempt recovery
                 }
             }
         }
@@ -235,15 +229,22 @@ namespace SerialToMqtt2
                 if (e.Topic.StartsWith(key))
                     Dispatcher.InvokeAsync(() =>
                     {
-                        Trace.WriteLine($"Found subscribers for {e.Topic}", "3");
+                        Trace.WriteLine($"Found subscribers for {e.Topic}", "4");
                         foreach (var p in TopicListeners[key])
                         {
                             ComPortItemsDictionary[p].TransmitActivity();
-                            Trace.WriteLine($"{p.PortName} <- {e.Topic}", "3");
-                            Trace.WriteLine(spiked3.extensions.HexDump(e.Message, 32), "4");
-
-                            p.Write(System.Text.Encoding.UTF8.GetString(e.Message));
-                            p.Write("\n");
+                            Trace.WriteLine($"{p.PortName} <- {e.Topic}: ", "3");
+                            Trace.WriteLine(System.Text.Encoding.UTF8.GetString(e.Message), "2");
+                            //Trace.WriteLine(spiked3.extensions.HexDump(e.Message, 32), "4");
+                            try
+                            {
+                                p.Write(System.Text.Encoding.UTF8.GetString(e.Message));
+                                p.Write("\n");
+                            }
+                            catch (Exception)
+                            {
+                                Debugger.Break();
+                            }
                         }
                     });
         }
